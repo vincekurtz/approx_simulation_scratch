@@ -53,13 +53,15 @@ epsilon = 1e-8;
 [alpha,ac] = polynomial([x1;x2;x3],3);
 [gamma,gc] = polynomial([u],3);
 [alpha_,a_c] = polynomial([g],2);
+[alpha_overbar,ao_c] = polynomial([x1;x2;x3],2);
 
 % SOS constraints
-F = [sos(V-alpha_-epsilon*x'*x)];
-F = F + [sos(alpha),sos(gamma),sos(alpha_)];
+F = [sos(V-alpha_)];
+F = F + [sos(alpha_overbar-V)];
+F = F + [sos(alpha),sos(gamma),sos(alpha_),sos(alpha_overbar)];
 F = F + [sos(-alpha+gamma-Vdot)];
 
-[sol,u,Q,res] = solvesos(F,[],[],[vc;ac;gc;a_c]);
+[sol,u,Q,res] = solvesos(F,[],[],[vc;ac;gc;a_c;ao_c]);
 
 if ~sol.problem
     disp("Solution Found!")
