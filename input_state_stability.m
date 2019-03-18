@@ -45,16 +45,17 @@ g = x1-x3;
 Vdot = jacobian(V,x)*f;
 
 % Class K/K_inf functions that should bound Vdot
+[alpha1,a1c] = polynomial([g],3);
+[alpha2,a2c] = polynomial(x,3);
+[alpha3,a3c] = polynomial(x,3);
+[alpha4,a4c] = polynomial([u],3);
 
-[alpha1,a1c] = polynomial([g],2);
-[alpha2,a2c] = polynomial(x,2);
-[alpha3,a3c] = polynomial(x,2);
-[alpha4,a4c] = polynomial([u],2);
-
+% To help with numerical issues
+epsilon = 1e-8;
 
 % SOS constraints
-F = [sos(V-alpha1)];
-F = F + [sos(alpha2-V)];
+F = [sos(V-alpha1-epsilon*x'*x)];
+F = F + [sos(alpha2-V-epsilon*x'*x)];
 F = F + [sos(alpha1),sos(alpha2),sos(alpha3),sos(alpha4)];
 F = F + [sos(-alpha3+alpha4-Vdot)];
 
