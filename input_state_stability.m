@@ -24,13 +24,14 @@ P = [1;0];
 
 %% ISS of joint system system
 
+u = sdpvar(1);
+
 x1 = sdpvar(1);
 x2 = sdpvar(1);
 x3 = sdpvar(1);
+
 x = [x1;x2;x3];
 x0 = [0.2;0;0];   % initial conditions
-
-u = sdpvar(1);
 
 % System definition
 f = [A1*[x1;x2] + B1*[u+K*([x1;x2]-P*x3)];
@@ -40,28 +41,24 @@ f = [A1*[x1;x2] + B1*[u+K*([x1;x2]-P*x3)];
 g = x1-x3;
 
 % Candidate ISS Lyapunov function
-[V,vc] = polynomial([x1;x2;x3],2);
-Vdot = jacobian(V,[x1;x2;x3])*f;
-
-% We'll try to minimize this
-V0 = replace(V,x,x0);
-
-% For ensuring PD-ness
-epsilon = 1e-8;
+[V,vc] = polynomial(x,2);
+Vdot = jacobian(V,x)*f;
 
 % Class K/K_inf functions that should bound Vdot
-[alpha,ac] = polynomial([x1;x2;x3],3);
-[gamma,gc] = polynomial([u],3);
-[alpha_,a_c] = polynomial([g],2);
-[alpha_overbar,ao_c] = polynomial([x1;x2;x3],2);
+
+[alpha1,a1c] = polynomial([g],2);
+[alpha2,a2c] = polynomial(x,2);
+[alpha3,a3c] = polynomial(x,2);
+[alpha4,a4c] = polynomial([u],2);
+
 
 % SOS constraints
-F = [sos(V-alpha_)];
-F = F + [sos(alpha_overbar-V)];
-F = F + [sos(alpha),sos(gamma),sos(alpha_),sos(alpha_overbar)];
-F = F + [sos(-alpha+gamma-Vdot)];
+F = [sos(V-alpha1)];
+F = F + [sos(alpha2-V)];
+F = F + [sos(alpha1),sos(alpha2),sos(alpha3),sos(alpha4)];
+F = F + [sos(-alpha3+alpha4-Vdot)];
 
-[sol,u,Q,res] = solvesos(F,[],[],[vc;ac;gc;a_c;ao_c]);
+[sol,u,Q,res] = solvesos(F,[],[],[vc;a1c;a2c;a3c;a4c]);
 
 if ~sol.problem
     disp("Solution Found!")
@@ -115,14 +112,17 @@ figure;
 hold on;
 
 V_sim = zeros(1,Ns);
-alpha_sim = zeros(1,Ns);
+alpha1_sim = zeros(1,Ns);
+alpha2_sim = zeros(1,Ns);
 for i = 1:Ns
     V_sim(:,i)= replace(V,[vc;x1;x2;x3],[value(vc);x1_sim(:,i);x2_sim(:,i)]);
-    alpha_sim(:,i) = replace(alpha_,[a_c;x1;x2;x3],[value(a_c);x1_sim(:,i);x2_sim(:,i)]);
+    alpha1_sim(:,i) = replace(alpha1,[a1c;x1;x2;x3],[value(a1c);x1_sim(:,i);x2_sim(:,i)]);
+    alpha2_sim(:,i) = replace(alpha2,[a2c;x1;x2;x3],[value(a2c);x1_sim(:,i);x2_sim(:,i)]);
 end
 
 plot(V_sim)
-plot(alpha_sim)
+plot(alpha1_sim)
+plot(alpha2_sim)
 error = x1_sim(1,:)-x2_sim(1,:);
 plot(error)
-legend("V","alpha_","error")
+legend("V","alpha_1","alpha_2","error")
