@@ -45,10 +45,10 @@ g = x1-x3;
 Vdot = jacobian(V,x)*f;
 
 % Class K/K_inf functions that should bound Vdot
-[alpha1,a1c] = polynomial([g],3);
-[alpha2,a2c] = polynomial(x,3);
-[alpha3,a3c] = polynomial(x,3);
-[alpha4,a4c] = polynomial([u],3);
+[alpha1,a1c] = polynomial([g],2);
+[alpha2,a2c] = polynomial(x,2);
+[alpha3,a3c] = polynomial(x,2);
+[alpha4,a4c] = polynomial([u],2);
 
 % To help with numerical issues
 epsilon = 1e-8;
@@ -59,7 +59,7 @@ F = F + [sos(alpha2-V-epsilon*x'*x)];
 F = F + [sos(alpha1),sos(alpha2),sos(alpha3),sos(alpha4)];
 F = F + [sos(-alpha3+alpha4-Vdot)];
 
-[sol,u,Q,res] = solvesos(F,[],[],[vc;a1c;a2c;a3c;a4c]);
+[sol] = solvesos(F,[],[],[vc;a1c;a2c;a3c;a4c]);
 
 if ~sol.problem
     disp("Solution Found!")
@@ -115,15 +115,21 @@ hold on;
 V_sim = zeros(1,Ns);
 alpha1_sim = zeros(1,Ns);
 alpha2_sim = zeros(1,Ns);
+alpha3_sim = zeros(1,Ns);
+alpha4_sim = zeros(1,Ns);
 for i = 1:Ns
     V_sim(:,i)= replace(V,[vc;x1;x2;x3],[value(vc);x1_sim(:,i);x2_sim(:,i)]);
     alpha1_sim(:,i) = replace(alpha1,[a1c;x1;x2;x3],[value(a1c);x1_sim(:,i);x2_sim(:,i)]);
     alpha2_sim(:,i) = replace(alpha2,[a2c;x1;x2;x3],[value(a2c);x1_sim(:,i);x2_sim(:,i)]);
+    alpha3_sim(:,i) = replace(alpha3,[a3c;x1;x2;x3],[value(a3c);x1_sim(:,i);x2_sim(:,i)]);
+    alpha4_sim(:,i) = replace(alpha4,[a4c;x1;x2;x3],[value(a4c);x1_sim(:,i);x2_sim(:,i)]);
 end
 
 plot(V_sim)
 plot(alpha1_sim)
 plot(alpha2_sim)
+plot(alpha3_sim)
+plot(alpha4_sim)
 error = x1_sim(1,:)-x2_sim(1,:);
 plot(error)
-legend("V","alpha_1","alpha_2","error")
+legend("V","alpha_1","alpha_2","alpha_3","alpha_4","error")
