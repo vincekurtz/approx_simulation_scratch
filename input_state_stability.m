@@ -44,11 +44,16 @@ g = x1-x3;
 [V,vc] = polynomial(x,2);
 Vdot = jacobian(V,x)*f;
 
-% Class K/K_inf functions that should bound Vdot
-[alpha1,a1c] = polynomial([g],2);
-[alpha2,a2c] = polynomial(x,2);
-[alpha3,a3c] = polynomial(x,2);
-[alpha4,a4c] = polynomial([u],2);
+% Class K_inf functions should be even polynomials
+a1c = sdpvar(2,1);
+a1poly = monolist(g,2).^2;
+a1poly = a1poly(2:end);
+alpha1 = a1c'*a1poly;
+
+[alpha1,a1c,da1] = even_polynomial(g,2);
+[alpha2,a2c,da2] = even_polynomial(x,2);
+[alpha3,a3c,da3] = even_polynomial(x,2);
+[alpha4,a4c,da4] = even_polynomial(u,2);
 
 % To help with numerical issues
 epsilon = 1e-8;
@@ -56,8 +61,8 @@ epsilon = 1e-8;
 % SOS constraints
 F = [sos(V-alpha1-epsilon*x'*x)];
 F = F + [sos(alpha2-V-epsilon*x'*x)];
-F = F + [sos(alpha1),sos(alpha2),sos(alpha3),sos(alpha4)];
 F = F + [sos(-alpha3+alpha4-Vdot)];
+F = F + [sos(da1),sos(da2),sos(da3),sos(da4)];
 
 [sol] = solvesos(F,[],[],[vc;a1c;a2c;a3c;a4c]);
 
@@ -106,30 +111,84 @@ figure;
 hold on;
 plot(x1_sim(1,:))
 plot(x2_sim(1,:))
-legend("x_1","x_2")
+legend("x_1: concrete","x_2: abstract")
+title("System Trajectories")
 
-% Plot V(x1,x2) vs alpha_(|g1-g2|)
+% Plot some of the quantities we've calculated to certify simulation
 figure;
 hold on;
 
 V_sim = zeros(1,Ns);
+Vdot_sim = zeros(1,Ns);
 alpha1_sim = zeros(1,Ns);
 alpha2_sim = zeros(1,Ns);
 alpha3_sim = zeros(1,Ns);
 alpha4_sim = zeros(1,Ns);
 for i = 1:Ns
     V_sim(:,i)= replace(V,[vc;x1;x2;x3],[value(vc);x1_sim(:,i);x2_sim(:,i)]);
+    Vdot_sim(:,i)= replace(Vdot,[vc;x1;x2;x3;u],[value(vc);x1_sim(:,i);x2_sim(:,i);u2(:,i)]);
     alpha1_sim(:,i) = replace(alpha1,[a1c;x1;x2;x3],[value(a1c);x1_sim(:,i);x2_sim(:,i)]);
     alpha2_sim(:,i) = replace(alpha2,[a2c;x1;x2;x3],[value(a2c);x1_sim(:,i);x2_sim(:,i)]);
     alpha3_sim(:,i) = replace(alpha3,[a3c;x1;x2;x3],[value(a3c);x1_sim(:,i);x2_sim(:,i)]);
-    alpha4_sim(:,i) = replace(alpha4,[a4c;x1;x2;x3],[value(a4c);x1_sim(:,i);x2_sim(:,i)]);
+    alpha4_sim(:,i) = replace(alpha4,[a4c;x1;x2;x3;u],[value(a4c);x1_sim(:,i);x2_sim(:,i);u2(:,i)]);
 end
 
+title("\alpha_1 \leq V \leq \alpha_2")
+plot(alpha2_sim)
 plot(V_sim)
 plot(alpha1_sim)
-plot(alpha2_sim)
-plot(alpha3_sim)
-plot(alpha4_sim)
+legend("\alpha_2","V","\alpha_1")
+
+figure;
+hold on
+
+title("Vdot \leq -\alpha_3 + \alpha_4")
+plot(Vdot_sim)
+plot(-alpha3_sim+alpha4_sim)
+legend("Vdot","-\alpha_3+\alpha_4")
 error = x1_sim(1,:)-x2_sim(1,:);
-plot(error)
-legend("V","alpha_1","alpha_2","alpha_3","alpha_4","error")
+
+figure;
+hold on
+title("Class K_{\infty} functions")
+s = linspace(0,10);
+a1 = value(a1c)'*[s.^2;s.^4];
+a2 = value(a2c)'*[s.^2;s.^4];
+a3 = value(a3c)'*[s.^2;s.^4];
+a4 = value(a4c)'*[s.^2;s.^4];
+plot(s,a1)
+plot(s,a2)
+plot(s,a3)
+plot(s,a4)
+
+legend("\alpha_1","\alpha_2","\alpha_3","\alpha_4")
+xlabel("s")
+ylabel("\alpha(s)")
+
+
+function [p, c, sdp_ds] = even_polynomial(s, n)
+    % Helper function to construct a symbolic even polynomial
+    %
+    % Arguments:
+    %    s - a YALMIP symbolic variable
+    %    n - the number of coefficients
+    %
+    % Returns:
+    %    p      - a symbolic even polynomial of the form p = c1*s^2+c2s^4+...
+    %    c      - the associated constants
+    %    sdp_ds - the polynomial s*dp(s)/ds, which forms a sos constraint
+    %             for p to be a class K_inf function
+
+    c = sdpvar(n,1);
+    raw_poly = [s'*s];
+    for i=2:n
+        raw_poly(i,:) = raw_poly(1,:)^(i);
+    end
+    p = c'*raw_poly;
+
+    cds = [2:2:2*n]'.*c    % coefficients of s*dp(s)/ds
+    sdp_ds = cds'*raw_poly;
+
+    %sdp_ds = jacobian(p,s);
+end
+
