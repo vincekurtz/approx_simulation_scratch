@@ -1,5 +1,5 @@
-% We can formulate the simulation problem as Input-Output stability of the
-% joint system, so here we'll consider starting from an ISS perspective
+% Computing a simulation function for two linear systems based on formulating
+% the problem as an Input-to-Output stability problem
 
 close all;
 clear all;
@@ -19,11 +19,10 @@ C2 = 1;
 
 % An interface that maps the input of system 2 to an input of system 1
 % is u2 + K*(x1-P*x2), where
-K = [-1, -1];
+K = [-1, -0.2];
 P = [1;0];
 
-%% ISS of joint system system
-
+%% Defining the joint system and SOS constraints
 u = sdpvar(1);
 
 x1 = sdpvar(1);
@@ -31,7 +30,6 @@ x2 = sdpvar(1);
 x3 = sdpvar(1);
 
 x = [x1;x2;x3];
-x0 = [0.2;0;0];   % initial conditions
 
 % System definition
 f = [A1*[x1;x2] + B1*[u+K*([x1;x2]-P*x3)];
@@ -45,11 +43,6 @@ g = x1-x3;
 Vdot = jacobian(V,x)*f;
 
 % Class K_inf functions should be even polynomials
-a1c = sdpvar(2,1);
-a1poly = monolist(g,2).^2;
-a1poly = a1poly(2:end);
-alpha1 = a1c'*a1poly;
-
 [alpha1,a1c,da1] = even_polynomial(g,2);
 [alpha2,a2c,da2] = even_polynomial(x,2);
 [alpha3,a3c,da3] = even_polynomial(x,2);
@@ -79,6 +72,7 @@ end
 % Simulation parameters
 dt = 0.1;
 Ns = 500;
+x0 = [0.2;0;0];   % initial conditions
 
 % Place to record the results
 x1_sim = zeros(2,Ns);
@@ -111,13 +105,12 @@ figure;
 hold on;
 plot(x1_sim(1,:))
 plot(x2_sim(1,:))
+xlabel('time')
+ylabel('position')
 legend("x_1: concrete","x_2: abstract")
 title("System Trajectories")
 
 % Plot some of the quantities we've calculated to certify simulation
-figure;
-hold on;
-
 V_sim = zeros(1,Ns);
 Vdot_sim = zeros(1,Ns);
 alpha1_sim = zeros(1,Ns);
@@ -133,38 +126,13 @@ for i = 1:Ns
     alpha4_sim(:,i) = replace(alpha4,[a4c;x1;x2;x3;u],[value(a4c);x1_sim(:,i);x2_sim(:,i);u2(:,i)]);
 end
 
-title("\alpha_1 \leq V \leq \alpha_2")
-plot(alpha2_sim)
+figure;
+hold on;
 plot(V_sim)
 plot(alpha1_sim)
-legend("\alpha_2","V","\alpha_1")
-
-figure;
-hold on
-
-title("Vdot \leq -\alpha_3 + \alpha_4")
-plot(Vdot_sim)
-plot(-alpha3_sim+alpha4_sim)
-legend("Vdot","-\alpha_3+\alpha_4")
-error = x1_sim(1,:)-x2_sim(1,:);
-
-figure;
-hold on
-title("Class K_{\infty} functions")
-s = linspace(0,10);
-a1 = value(a1c)'*[s.^2;s.^4];
-a2 = value(a2c)'*[s.^2;s.^4];
-a3 = value(a3c)'*[s.^2;s.^4];
-a4 = value(a4c)'*[s.^2;s.^4];
-plot(s,a1)
-plot(s,a2)
-plot(s,a3)
-plot(s,a4)
-
-legend("\alpha_1","\alpha_2","\alpha_3","\alpha_4")
-xlabel("s")
-ylabel("\alpha(s)")
-
+legend("V(x)","\alpha_1(|g(x)|")
+title("Error Bound: \alpha_1(|g(x)|) \leq V(x)")
+xlabel('time')
 
 function [p, c, sdp_ds] = even_polynomial(s, n)
     % Helper function to construct a symbolic even polynomial
