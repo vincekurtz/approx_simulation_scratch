@@ -17,10 +17,6 @@ A2 = 0;
 B2 = 1;
 C2 = 1;
 
-% An interface that maps the input of system 2 to an input of system 1
-% is u2 + K*(x1-P*x2), where
-K = [-1, -0.2];
-P = [1;0];
 
 %% Defining the joint system and SOS constraints
 u = sdpvar(1);
@@ -32,7 +28,10 @@ x3 = sdpvar(1);
 x = [x1;x2;x3];
 
 % System definition
-f = [A1*[x1;x2] + B1*[u+K*([x1;x2]-P*x3)];
+[interface,ic] = polynomial([x;u],1);
+ic = sdpvar(1);
+interface = ic-x1-x2+x3+u;
+f = [A1*[x1;x2] + B1*interface;
      A2*x3 + B2*u];
  
 % System outputs
@@ -49,7 +48,7 @@ Vdot = jacobian(V,x)*f;
 [alpha4,a4c,da4] = even_polynomial(u,2);
 
 % To help with numerical issues
-epsilon = 1e-8;
+epsilon = 1e-6;
 
 % SOS constraints
 F = [sos(V-alpha1-epsilon*x'*x)];
@@ -57,12 +56,20 @@ F = F + [sos(alpha2-V-epsilon*x'*x)];
 F = F + [sos(-alpha3+alpha4-Vdot)];
 F = F + [sos(da1),sos(da2),sos(da3),sos(da4)];
 
-[sol] = solvesos(F,[],[],[vc;a1c;a2c;a3c;a4c]);
+% Options
+ops = sdpsettings('penbmi.PBM_MAX_ITER',500, ...
+                  'penbmi.NWT_SYS_MODE',2,   ...
+                  'penbmi.LS',1,             ...
+                  'penbmi.UM_MAX_ITER',200);
+
+[sol] = solvesos(F,[],ops,[vc;a1c;a2c;a3c;a4c;ic]);
 
 if ~sol.problem
     disp("Solution Found!")
     disp("V: ")
     sdisplay(replace(V,vc,value(vc)),[3])
+    disp("interface: ")
+    sdisplay(replace(interface,ic,value(ic)),[3])
 else
     disp("No solution found :(")
 end
@@ -90,8 +97,8 @@ for i = 1:(Ns-1)
     end
     
     % Simulate x1 forward in time
-    interface = u2(:,i) + K*(x1_sim(:,i)-P*x2_sim(:,i));
-    x1_dot = A1*x1_sim(:,i)+B1*interface;
+    u1 = replace(interface,[u;x1;x2;x3;ic],[u2(:,i);x1_sim(:,i);x2_sim(:,i);value(ic)]);
+    x1_dot = A1*x1_sim(:,i)+B1*u1;
     x1_sim(:,i+1) = x1_sim(:,i) + x1_dot*dt;
     
     % Simulate x2 forward in time
@@ -118,8 +125,8 @@ alpha2_sim = zeros(1,Ns);
 alpha3_sim = zeros(1,Ns);
 alpha4_sim = zeros(1,Ns);
 for i = 1:Ns
-    V_sim(:,i)= replace(V,[vc;x1;x2;x3],[value(vc);x1_sim(:,i);x2_sim(:,i)]);
-    Vdot_sim(:,i)= replace(Vdot,[vc;x1;x2;x3;u],[value(vc);x1_sim(:,i);x2_sim(:,i);u2(:,i)]);
+    V_sim(:,i)= replace(V,[vc;x1;x2;x3;ic],[value(vc);x1_sim(:,i);x2_sim(:,i);value(ic)]);
+    Vdot_sim(:,i)= replace(Vdot,[vc;x1;x2;x3;u;ic],[value(vc);x1_sim(:,i);x2_sim(:,i);u2(:,i);value(ic)]);
     alpha1_sim(:,i) = replace(alpha1,[a1c;x1;x2;x3],[value(a1c);x1_sim(:,i);x2_sim(:,i)]);
     alpha2_sim(:,i) = replace(alpha2,[a2c;x1;x2;x3],[value(a2c);x1_sim(:,i);x2_sim(:,i)]);
     alpha3_sim(:,i) = replace(alpha3,[a3c;x1;x2;x3],[value(a3c);x1_sim(:,i);x2_sim(:,i)]);
