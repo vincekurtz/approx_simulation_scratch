@@ -29,10 +29,8 @@ x = [x1;x2;x3];
 
 % System definition
 [interface,ic] = polynomial([x;u],1);
-%ic = sdpvar(5,1);
-%interface = [ic(1);ic(5);ic(4);ic(2);ic(3)]'*[1;x1;x2;x3;u];
+%interface = u-x1-x2+x3;  % an interface that we know works decently
 
-%ic-x1-x2+x3+u;
 f = [A1*[x1;x2] + B1*interface;
      A2*x3 + B2*u];
  
@@ -44,7 +42,7 @@ g = x1-x3;
 Vdot = jacobian(V,x)*f;
 
 % Class K_inf functions should be even polynomials
-[alpha1,a1c,da1] = even_polynomial(g,2);
+alpha1 = g^2;     % enforcing this means that V(x) bounds the output error, without losing much generality
 [alpha2,a2c,da2] = even_polynomial(x,2);
 [alpha3,a3c,da3] = even_polynomial(x,2);
 [alpha4,a4c,da4] = even_polynomial(u,2);
@@ -56,15 +54,15 @@ epsilon = 1e-6;
 F = [sos(V-alpha1-epsilon*x'*x)];
 F = F + [sos(alpha2-V-epsilon*x'*x)];
 F = F + [sos(-alpha3+alpha4-Vdot)];
-F = F + [sos(da1),sos(da2),sos(da3),sos(da4)];
+F = F + [sos(da2),sos(da3),sos(da4)];
 
 % It helps BMI solvers to have explicit bounds on variables
-F = F + [ 100 >= [vc;a1c;a2c;a3c;a4c] >= -100];
+F = F + [ 100 >= [vc;a2c;a3c;a4c] >= -100];
 F = F + [ 1 >= ic >= -1];
 
 % Options
-ops = sdpsettings('penbmi.PBM_MAX_ITER',500, ...
-                  'penbmi.NWT_SYS_MODE',1,   ...
+ops = sdpsettings('penbmi.PBM_MAX_ITER',1000, ...
+                  'penbmi.NWT_SYS_MODE',0,   ...
                   'penbmi.LS',1,             ...
                   'penbmi.UM_MAX_ITER',200);
               
@@ -74,8 +72,7 @@ ops = sdpsettings('penbmi.PBM_MAX_ITER',500, ...
 %                   'sos.model',2,            ...
 %                   'bmibnb.roottight',0);
 
-              
-[sol] = solvesos(F,[],ops,[vc;a1c;a2c;a3c;a4c;ic]);
+[sol] = solvesos(F,[],ops,[vc;a2c;a3c;a4c;ic]);  % minimizing alpha4 makes V a tigher bound
 
 if ~sol.problem
     disp("Solution Found!")
@@ -140,7 +137,7 @@ alpha4_sim = zeros(1,Ns);
 for i = 1:Ns
     V_sim(:,i)= replace(V,[vc;x1;x2;x3;ic],[value(vc);x1_sim(:,i);x2_sim(:,i);value(ic)]);
     Vdot_sim(:,i)= replace(Vdot,[vc;x1;x2;x3;u;ic],[value(vc);x1_sim(:,i);x2_sim(:,i);u2(:,i);value(ic)]);
-    alpha1_sim(:,i) = replace(alpha1,[a1c;x1;x2;x3],[value(a1c);x1_sim(:,i);x2_sim(:,i)]);
+    alpha1_sim(:,i) = replace(alpha1,[x1;x2;x3],[x1_sim(:,i);x2_sim(:,i)]);
     alpha2_sim(:,i) = replace(alpha2,[a2c;x1;x2;x3],[value(a2c);x1_sim(:,i);x2_sim(:,i)]);
     alpha3_sim(:,i) = replace(alpha3,[a3c;x1;x2;x3],[value(a3c);x1_sim(:,i);x2_sim(:,i)]);
     alpha4_sim(:,i) = replace(alpha4,[a4c;x1;x2;x3;u],[value(a4c);x1_sim(:,i);x2_sim(:,i);u2(:,i)]);
@@ -150,7 +147,7 @@ figure;
 hold on;
 plot(V_sim)
 plot(alpha1_sim)
-legend("V(x)","\alpha_1(|g(x)|")
+legend("V(x)","\alpha_1(|g(x)|) = |g(x)|^2")
 title("Error Bound: \alpha_1(|g(x)|) \leq V(x)")
 xlabel('time')
 
@@ -174,9 +171,8 @@ function [p, c, sdp_ds] = even_polynomial(s, n)
     end
     p = c'*raw_poly;
 
-    cds = [2:2:2*n]'.*c    % coefficients of s*dp(s)/ds
+    cds = [2:2:2*n]'.*c;    % coefficients of s*dp(s)/ds
     sdp_ds = cds'*raw_poly;
 
-    %sdp_ds = jacobian(p,s);
 end
 
