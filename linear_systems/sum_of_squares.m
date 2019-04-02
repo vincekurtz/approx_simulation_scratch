@@ -29,8 +29,10 @@ x = [x1;x2;x3];
 
 % System definition
 [interface,ic] = polynomial([x;u],1);
-ic = sdpvar(1);
-interface = ic-x1-x2+x3+u;
+%ic = sdpvar(5,1);
+%interface = [ic(1);ic(5);ic(4);ic(2);ic(3)]'*[1;x1;x2;x3;u];
+
+%ic-x1-x2+x3+u;
 f = [A1*[x1;x2] + B1*interface;
      A2*x3 + B2*u];
  
@@ -56,12 +58,23 @@ F = F + [sos(alpha2-V-epsilon*x'*x)];
 F = F + [sos(-alpha3+alpha4-Vdot)];
 F = F + [sos(da1),sos(da2),sos(da3),sos(da4)];
 
+% It helps BMI solvers to have explicit bounds on variables
+F = F + [ 100 >= [vc;a1c;a2c;a3c;a4c] >= -100];
+F = F + [ 1 >= ic >= -1];
+
 % Options
 ops = sdpsettings('penbmi.PBM_MAX_ITER',500, ...
-                  'penbmi.NWT_SYS_MODE',2,   ...
+                  'penbmi.NWT_SYS_MODE',1,   ...
                   'penbmi.LS',1,             ...
                   'penbmi.UM_MAX_ITER',200);
+              
+% ops = sdpsettings('solver','bmibnb',        ...
+%                   'debug',1,                ...
+%                   'bmibnb.lpreduce',1,      ...
+%                   'sos.model',2,            ...
+%                   'bmibnb.roottight',0);
 
+              
 [sol] = solvesos(F,[],ops,[vc;a1c;a2c;a3c;a4c;ic]);
 
 if ~sol.problem
