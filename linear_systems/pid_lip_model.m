@@ -28,7 +28,7 @@ A2 = [0       1 0 0;
       omega^2 0 0 0;
       0       0 0 0;
       0       0 0 0];
-B2 = [1        ;
+B2 = [0        ;
       -omega^2 ;
       0        ;
       0        ];
@@ -54,16 +54,17 @@ pdd_des = [omega^2*(x2(1)-u); 0];       % Desired Center of mass accelration
 
 Kd = [1.5 0; 0 0.9];
 Kp = [10 0; 0 0.9];
+%Kd = 0; K=0;
 
-%interface = pdd_des + Kd*(pd_des-pd) + Kp*(p_des-p);
+interface = pdd_des + Kd*(pd_des-pd) + Kp*(p_des-p);
 
 % DEBUG
 P = [1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 0];  % P and Q chosen such that PA2 = A1P+B1*Q and C2 = C1*P
 Q = [omega^2 0 0 0;
      0       0 0 0];
 R = [1;0];
-K = -[1 1.7321 0 0;
-     0 0      1 1.7321;];
+K = -[5 2 0 0;
+     0 0      5 2;];
 interface = R*u + Q*x2 + K*(x1-P*x2);
 
 %% Finding a Bisimulation function
@@ -89,7 +90,7 @@ Vdot = jacobian(V,x)*f;
 
 % To help with numerical issues
 epsilon = 1e-6;
-%epsilon = 0;
+epsilon = 0;
 
 % SOS constraints
 F = [sos(V-alpha1-epsilon*x'*x)];
@@ -114,7 +115,7 @@ end
 % Simulation parameters
 dt = 0.1;
 Ns = 500;
-x0 = [0.01;0;0.99;0;
+x0 = [0;0;1;0;
       0;0;1;0];   % initial conditions
 
 % Place to record the results
