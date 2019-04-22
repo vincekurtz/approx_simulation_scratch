@@ -33,10 +33,10 @@ f_func = matlabFunction(f_sym, 'file', 'BalancerDynamics','vars',{x_sym,u_sym});
 
 %% Feedback Linearization
 
-% End effector position
-xe_sym = cos(theta1)+cos(theta1+theta2);
-ye_sym = sin(theta1)+sin(theta1+theta2);
-p_sym = [xe_sym;ye_sym];
+% COM position
+xc_sym = 3/4*cos(theta1)+1/4*cos(theta1+theta2);
+yc_sym = 3/4*sin(theta1)+1/4*sin(theta1+theta2);
+p_sym = [xc_sym;yc_sym];
 
 % End effector jacobian
 J_sym = jacobian(p_sym, q_sym);
@@ -50,11 +50,19 @@ J_sym = jacobian(p_sym, q_sym);
 %% Simulation
 x0 = [pi/2 0.01 0 0]';
 
-control_params.x_nom = 0;   % nominal x and y that we'll control to
-control_params.y_nom = -1;
+control_params.x_nom = 0.0;   % nominal x and y that we'll control to
+control_params.y_nom = 0.7;
 
 [t_store, q_sim , u_store] = Sim(x0, control_params);
 q_store = q_sim(:,1:2)';
+
+x_end = cos(q_sim(:,1))+cos(q_sim(:,1)+q_sim(:,2));
+y_end = sin(q_sim(:,1))+sin(q_sim(:,1)+q_sim(:,2));
+x_com = 3/4*cos(q_sim(:,1))+1/4*cos(q_sim(:,1)+q_sim(:,2));
+y_com = 3/4*sin(q_sim(:,1))+1/4*sin(q_sim(:,1)+q_sim(:,2));
+hold on;
+plot(x_end,y_end)
+plot(x_com,y_com)
 
 % Animate the results
 showmotion(double_pendulum_model, t_store, q_store)
@@ -87,10 +95,11 @@ function [t_store, state_store , u_store] = Sim(x0, control_params)
         x = x+dx*dt;
 
     end
+
 end
 
 function u = control_law(x, control_params)
-    % Note: state is x = [q;qd] = [theta1;theta2;theta1';theta2']
+    % Note: state is x = [q;qd] = [theta1;theta2;theta1_dot;theta2_dot]
     theta1 = x(1);
     theta2 = x(2);
     theta1_dot = x(3);
@@ -98,17 +107,18 @@ function u = control_law(x, control_params)
     qd = [theta1_dot;theta2_dot];
     
     % Calculate Jacobian and associated time derivative
-    J = [-sin(theta1)-sin(theta1+theta2) , -sin(theta1+theta2);
-         cos(theta1)+cos(theta1+theta2) ,  cos(theta1+theta2)];
-    
-    Jdot = [-theta1_dot*cos(theta1)-(theta1_dot+theta2_dot)*cos(theta1+theta2) , -(theta1_dot+theta2_dot)*cos(theta1+theta2);
-            -theta1_dot*sin(theta1)-(theta1_dot+theta2_dot)*sin(theta1+theta2) , -(theta1_dot+theta2_dot)*sin(theta1+theta2)];
+    J = [-sin(theta1 + theta2)/4 - (3*sin(theta1))/4, -sin(theta1 + theta2)/4;
+          cos(theta1 + theta2)/4 + (3*cos(theta1))/4,  cos(theta1 + theta2)/4];
+
+    Jdot = [- (3*cos(theta1)*theta1_dot)/4 - (cos(theta1 + theta2)*(theta1_dot + theta2_dot))/4, -(cos(theta1 + theta2)*(theta1_dot + theta2_dot))/4;
+            - (3*sin(theta1)*theta1_dot)/4 - (sin(theta1 + theta2)*(theta1_dot + theta2_dot))/4, -(sin(theta1 + theta2)*(theta1_dot + theta2_dot))/4];
+
     
     % Calculate nominal control for linearized system
-    xe_actual = cos(theta1)+cos(theta1+theta2);  % actual end effector position
-    ye_actual = sin(theta1)+sin(theta1+theta2);
+    xc_actual = 3/4*cos(theta1)+1/4*cos(theta1+theta2);  % actual end effector position
+    yc_actual = 3/4*sin(theta1)+1/4*sin(theta1+theta2);
     
-    p = [xe_actual;ye_actual];   % end effector position
+    p = [xc_actual;yc_actual];   % end effector position
     pdot = J*x(3:4);             % end effector velocity
     
     x_lin = [p;pdot];   % linearized state is [x;y;x';y']
@@ -116,6 +126,7 @@ function u = control_law(x, control_params)
     
     K = [1.0 0 1.7321 0; 0 1.0 0 1.7321];   % from LQR of linearized system
     v = -K*x_lin_err;    % nominal control input
+
     
     % Feedback linearized control input: we could also use subs() here to
     % compute H, C, etc, but that turns out to be super slow
