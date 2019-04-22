@@ -46,31 +46,22 @@ J_sym = jacobian(p_sym, q_sym);
 % external force, and correolis terms. 
 [H_sym,C_sym] = HandC(double_pendulum_model, q_sym, qd_sym);
 
-
 %% Simulation
 x0 = [pi/2 0.01 0 0]';
 
 control_params.x_nom = 0.0;   % nominal x and y that we'll control to
 control_params.y_nom = 0.7;
 
-[t_store, q_sim , u_store] = Sim(x0, control_params);
-q_store = q_sim(:,1:2)';
-
-x_end = cos(q_sim(:,1))+cos(q_sim(:,1)+q_sim(:,2));
-y_end = sin(q_sim(:,1))+sin(q_sim(:,1)+q_sim(:,2));
-x_com = 3/4*cos(q_sim(:,1))+1/4*cos(q_sim(:,1)+q_sim(:,2));
-y_com = 3/4*sin(q_sim(:,1))+1/4*sin(q_sim(:,1)+q_sim(:,2));
-hold on;
-plot(x_end,y_end)
-plot(x_com,y_com)
+[t_sim, q_sim, u_sim] = Sim(x0, control_params);
 
 % Animate the results
-showmotion(double_pendulum_model, t_store, q_store)
+animate_double_pendulum(t_sim, q_sim)
+
 
 function [t_store, state_store , u_store] = Sim(x0, control_params)
     x = x0;
 
-    dt = 1e-3;
+    dt = 1e-2;
     
     umin = [-50;-50];
     umax = [50;50];

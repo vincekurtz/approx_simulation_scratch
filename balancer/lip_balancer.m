@@ -1,76 +1,22 @@
 %% Simulation of balancing using the Linear Inverted Pendulum (LIP) model
 
-% Parameters for the simulation
-params.h = 0.7;
-params.g = 9.81;
-params.omega = sqrt(params.g/params.h);
+% Parameters for the LIP model
+lip_params.h = 0.7;
+lip_params.g = 9.81;
+lip_params.omega = sqrt(lip_params.g/lip_params.h);
 
-params.A = [ 0 1; params.omega^2 0];  % x' = Ax+Bu
-params.B = [1; -params.omega^2];
+lip_params.A = [ 0 1; lip_params.omega^2 0];  % x' = Ax+Bu
+lip_params.B = [1; -lip_params.omega^2];
 
-% Parameters for the controller: we'll use an LQR scheme
-[K,P,e] = lqr(params.A,params.B,eye(2),1);
-params.K = K;
+[K,P,e] = lqr(lip_params.A,lip_params.B,eye(2),1);  % We'll use an LQR control scheme to regulate about the upright
+lip_params.K = K;
 
 % Initial position of th CoM
 x0 = [0.1;0.1];
 
-[t_sim, x_sim, u_sim] = Sim(x0, params);
+[t_sim, x_sim, u_sim] = Sim(x0, lip_params);
 
-animate(t_sim, x_sim, u_sim, params)
-
-function [] = animate(t_sim, x_sim, u_sim, params)
-    % Animate the behavior of the LIP model
-
-    % Y height is fixed
-    y = params.h;
-
-    % Ground frame
-    ground = plot(gca, [-15 15],[0 0],'k','LineWidth',2);
-    frame0 = hgtransform(gca);
-
-    % Center of pressure
-    frame1 = hgtransform(frame0);
-    r = 0.1;
-    cop = rectangle('Curvature',[1,1],'Parent',frame1);  % Center of pressure
-    cop.Position = [-r/2, -r/2, r, r];
-    cop.EdgeColor = 'none';
-    cop.FaceColor = 'blue';
-
-    % Center of mass
-    frame2 = hgtransform(frame1);
-    cop = rectangle('Curvature',[1,1],'Parent',frame2);  % Center of pressure
-    cop.Position = [-r/2, -r/2, r, r];
-    cop.EdgeColor = 'none';
-    cop.FaceColor = 'red';
-
-    % Line between COP and COM
-    l = line('Parent',frame1);
-
-
-    axis equal
-    xlim([-2.5,2.5])
-
-    for i=1:length(t_sim)-1
-        tic
-        dt = t_sim(i+1) - t_sim(i);
-
-        % Move the center of pressure
-        u = u_sim(i);
-        frame1.Matrix = makehgtform('translate',[u 0 0]);
-
-        % move the center of mass
-        x = x_sim(i,1);
-        frame2.Matrix = makehgtform('translate',[x-u y 0]);
-
-        l.XData = [0,x-u];
-        l.YData = [0,y];
-
-        pause(dt-toc)
-    end
-
-
-end
+animate_lip(t_sim, x_sim, u_sim, lip_params.h)
 
 function [t_store, state_store, u_store] = Sim(x0, params)
     % Simulate the LIP model with the given initial condition, and 
@@ -106,5 +52,4 @@ function u = control_law(x, params)
     % We'll choose to place the CoP at the "caputre point"
     u = -params.K*x;
 end
-
 
