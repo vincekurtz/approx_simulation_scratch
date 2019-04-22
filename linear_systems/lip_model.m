@@ -47,14 +47,16 @@ x2 = sdpvar(4,1);
 K = -[1 1.7321 0 0;
      0 0      1 1.7321;];
 
-lambda = sdpvar(1);
+K = -[5,2,0,0;         % this gain seems to work very well...
+      0 0   5, 2];
+
+lambda = 0.5;
 Mbar = sdpvar(4,4);
 Kbar = K*Mbar;
 
 F = [ [Mbar Mbar*C1'; C1*Mbar eye(2)] >= 0];
 F = F + [Mbar*A1' + A1*Mbar + Kbar'*B1'+B1*Kbar + 2*lambda*Mbar <= 0 ];
-optimize(F,-lambda);  % maximize lambda
-lambda = value(lambda)
+optimize(F);
 
 M = inv(value(Mbar));
 
