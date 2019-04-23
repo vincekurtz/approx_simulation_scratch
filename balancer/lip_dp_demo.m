@@ -99,13 +99,10 @@ P = eye(4);  % P and Q chosen such that PA2 = A1P+B1*Q and C2 = C1*P
 Q = [omega^2 0 0 0;
      0       0 0 0];
 R = [-omega^2;0];
-K_joint = -lqr(A1,B1,eye(4),10*eye(2));    % A control gain that stabilizes the concrete system
-                                        % Could derive from a PD controller as well
-Kd = [1 0; 0 1];
-Kp = [1 0; 0 1];
-K_joint = -[1 1 0 0; 0 0 1 1];
+K_joint = -lqr(A1,B1,eye(4),eye(2));    % A control gain that stabilizes the concrete system
+                                            % Could derive from a PD controller as well
 
-lambda = 0.01;
+lambda = 0.1;
 Mbar = sdpvar(4,4);
 Kbar = K_joint*Mbar;
 
@@ -170,7 +167,7 @@ x = [pi/4;0.1;0;0];         % initial joint states and velocities
 com_init = x_com(x); 
 x_lip = [com_init(1:2);h;0];  % we start the lip with same x value and velocity as the full system
 
-for t = 0:dt:T
+for t = 1:dt:T
 
     % Compute the LIP control that will let us balance.
     % Only the x position and velocity are considered
@@ -185,10 +182,7 @@ for t = 0:dt:T
     q = x(1:2);
     qd = x(3:4);
     tau = H(q)*inv(J(q))*(u_lin-Jdot(q,qd)*qd)+C(q,qd);
-    
-    tau = min(tau_max, tau);   % enforce torque limits
-    tau = max(tau_min, tau);
-
+   
     % Apply the controls to the full system
     dx = BalancerDynamics(x, tau);
     x = x + dx*dt;
@@ -204,6 +198,53 @@ for t = 0:dt:T
     dp_state(end+1,:) = x;
 
 end
+
+% Calculate the actual CoM position for the recorded trajectory
+com_state = x_com(dp_state')';
+
+% Plot the errors along the trajectories
+subplot(2,2,1);
+hold on
+plot(t_sim, lip_state(:,1)-com_state(:,1));
+title("CoM X position");
+xlabel("time")
+ylabel("error")
+
+subplot(2,2,2);
+hold on
+plot(t_sim, lip_state(:,3)-com_state(:,3));
+title("CoM Y position");
+xlabel("time")
+ylabel("error")
+
+subplot(2,2,3);
+hold on
+plot(t_sim, lip_state(:,2)-com_state(:,2));
+title("CoM X velocity");
+xlabel("time")
+ylabel("error")
+
+subplot(2,2,4);
+hold on
+plot(t_sim, lip_state(:,4)-com_state(:,4));
+title("CoM Y velocity");
+xlabel("time")
+ylabel("error")
+
+% Plot the net error and Bisimulation function
+err = zeros(size(t_sim));
+V_sim = zeros(size(t_sim));
+for t = 1:length(t_sim)
+    err(t) = (lip_state(t,:)-com_state(t,:))*(lip_state(t,:)-com_state(t,:))';
+    V_sim(t) = (lip_state(t,:)-com_state(t,:))*M*(lip_state(t,:)-com_state(t,:))';
+end
+
+figure;
+hold on
+plot(t_sim, err);
+plot(t_sim, V_sim);
+legend("Output Error","Simulation Function");
+
 
 % Play the animations
 animate_lip_dp(t_sim, dp_state, lip_state(:,1:2), lip_control, h);
