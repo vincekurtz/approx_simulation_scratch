@@ -23,10 +23,10 @@ C1 = [1 0 0 0;     % the outputs of both systems are the x and y position only
       0 0 1 0];
 
 % The abstract system is the linear inverted pendulum
-omega = 1;
+omega = sqrt(9.81/0.7);
 A2 = [0       1 0 0;
       omega^2 0 0 0;
-      0       0 0 0;
+      0       0 0 1;
       0       0 0 0];
 B2 = [0        ;
       -omega^2 ;
@@ -58,6 +58,12 @@ Kp = [10 0; 0 0.9];
 
 interface = pdd_des + Kd*(pd_des-pd) + Kp*(p_des-p);
 
+% Alternative, double check
+R = [-omega^2;0];
+Q = [omega^2 0 0 0; 0 0 0 0];
+K = -[Kp Kd];
+i2 = R*u+Q*x2+K*(x1-x2);
+
 % DEBUG
 P = [1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 0];  % P and Q chosen such that PA2 = A1P+B1*Q and C2 = C1*P
 Q = [omega^2 0 0 0;
@@ -65,7 +71,7 @@ Q = [omega^2 0 0 0;
 R = [1;0];
 K = -[5 2 0 0;
      0 0      5 2;];
-interface = R*u + Q*x2 + K*(x1-P*x2);
+%interface = R*u + Q*x2 + K*(x1-P*x2);
 
 %% Finding a Bisimulation function
 
@@ -88,17 +94,16 @@ Vdot = jacobian(V,x)*f;
 [alpha3,a3c,da3] = even_polynomial(x,2);
 [alpha4,a4c,da4] = even_polynomial(u,2);
 
-% To help with numerical issues
-epsilon = 1e-6;
-epsilon = 0;
-
 % SOS constraints
-F = [sos(V-alpha1-epsilon*x'*x)];
-F = F + [sos(alpha2-V-epsilon*x'*x)];
-F = F + [sos(-alpha3+alpha4-Vdot-epsilon*x'*x)];
+F = [sos(V-alpha1)];
+F = F + [sos(alpha2-V)];
+F = F + [sos(-alpha3+alpha4-Vdot)];
 F = F + [sos(da1),sos(da2),sos(da3),sos(da4)];
 
-ops = sdpsettings('sos.model',2);
+ops = sdpsettings('sos.model',2, ...
+                  'sos.newton',0, ...
+                  'sos.sparsetol',1e-16, ...
+                  'sos.scale',0);
 
 [sol] = solvesos(F,[],ops,[vc;a1c;a2c;a3c;a4c;]);  % minimizing alpha4 makes V a tigher bound
 
@@ -109,6 +114,8 @@ if ~sol.problem
 else
     disp("No solution found :(")
 end
+
+return;
 
 %% Simulating both systems to check the results
 

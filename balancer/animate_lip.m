@@ -29,6 +29,9 @@ function [] = animate_lip(t_sim, x_sim, u_sim, h)
     % Line between COP and COM
     l = line('Parent',frame1);
 
+    % Line that COM is constrained to
+    yline(h,'--');
+
 
     axis equal
     xlim([-2.5,2.5])

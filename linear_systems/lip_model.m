@@ -20,13 +20,15 @@ C1 = [1 0 0 0;     % the outputs of both systems are the x and y position only
       0 0 1 0];
 
 % The abstract system is the linear inverted pendulum
-omega = 1;
+omega = 3.7436;
+omega = 1.2;
+omega2 = 1.2^2;
 A2 = [0       1 0 0;
-      omega^2 0 0 0;
+      omega2 0 0 0;
       0       0 0 0;
       0       0 0 0];
-B2 = [1        ;
-      -omega^2 ;
+B2 = [0        ;
+      -omega2 ;
       0        ;
       0        ];
 C2 = [1 0 0 0;
@@ -44,13 +46,11 @@ x2 = sdpvar(4,1);
 %% Finding a Bisimulation function and interface, following Girard and Pappas '09
 
 % Feedback gain that stabilizes the concrete system, from LQR or similar
-K = -[1 1.7321 0 0;
-     0 0      1 1.7321;];
+K = -[1 2 0 0;
+     0 0  1 1;];
 
-K = -[5,2,0,0;         % this gain seems to work very well...
-      0 0   5, 2];
 
-lambda = 0.5;
+lambda = 0.01;
 Mbar = sdpvar(4,4);
 Kbar = K*Mbar;
 

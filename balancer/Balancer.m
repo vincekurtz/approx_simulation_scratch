@@ -47,7 +47,7 @@ J_sym = jacobian(p_sym, q_sym);
 [H_sym,C_sym] = HandC(double_pendulum_model, q_sym, qd_sym);
 
 %% Simulation
-x0 = [pi/2 0.01 0 0]';
+x0 = [pi/4 0.1 0 0]';
 
 control_params.x_nom = 0.0;   % nominal x and y that we'll control to
 control_params.y_nom = 0.7;
@@ -118,6 +118,7 @@ function u = control_law(x, control_params)
     K = [1.0 0 1.7321 0; 0 1.0 0 1.7321];   % from LQR of linearized system
     v = -K*x_lin_err;    % nominal control input
 
+
     
     % Feedback linearized control input: we could also use subs() here to
     % compute H, C, etc, but that turns out to be super slow
@@ -127,7 +128,7 @@ function u = control_law(x, control_params)
     C = [(981*cos(theta1 + theta2))/200 + (2943*cos(theta1))/200 - (theta2_dot^2*sin(theta2))/2 - theta1_dot*theta2_dot*sin(theta2);
                                                                       (sin(theta2)*theta1_dot^2)/2 + (981*cos(theta1 + theta2))/200];
          
-    tau = H*inv(J)*(v-Jdot*qd)+C;
+    tau = H*inv(J)*(v-Jdot*qd)+C
     
     u = tau;
 end
