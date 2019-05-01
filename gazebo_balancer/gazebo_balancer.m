@@ -10,7 +10,21 @@ clc;
 pause(5)  % wait a few seconds so that the gazebo simulation can start roscore
 
 try
-    %% Simulation Setup
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Controller Setup
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    % Compute an interface that guarantees approximate simulation.
+    compute_interface;
+
+    % Torque limits
+    tau_min = -100;
+    tau_max = 100;
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Simulation Setup
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
     % Start a matlab ros node
     ROS_MASTER_URI="http://ubuntu-p50:11311/";
     rosinit(ROS_MASTER_URI)
@@ -20,7 +34,7 @@ try
     pause_msg = rosmessage(pause_client);  % an empty message
     
     % create a subscriber to read joint angles and velocities
-    global theta1 theta2 theta1_dot theta2_dot;
+    global t1 t2 t1_dot t2_dot;
     joint_sub = rossubscriber('/double_pendulum/joint_states', @joint_state_callback);
     
     % Create publishers for the joint torques
@@ -31,49 +45,70 @@ try
     
     % Number of timesteps and time discritization
     sim_time = 5;  % simulation time in seconds
-    dt = 1e-3;
+    dt = 1e-2;
     Ns = sim_time/dt;
     
     pause(2) % Wait 2s
     
-    %% Controller Setup
-    kp_1 = 50;  % proportional controller for each torque
-    kp_2 = 30;
-    
-    %% Simulation
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Simulation
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
     % unpause the physics engine
     pause_resp = call(pause_client, pause_msg);
-    
+
+
+    % Get the initial state of the robot: note that there is a mismatch between the
+    % definitions of theta1, theta2 in our matlab model and in gazebo
+    x = [t1;t2;t1_dot;t2_dot]
+
+    % Set the initial state of the LIP model
+    com_init = x_com(x);
+    x_lip = [com_init(1:2);h;0];
+
     for i=1:Ns        
-        % Compute torques to apply
-        tau1 = -kp_1*theta1;
-        tau2 = -kp_2*theta2;
+        tic
+        % Compute the LIP control that will let us balance.
+        % Only the x position and velocity are considered
+        u_lip = -K_lip*x_lip(1:2);
+
+        % Compute torques to apply based to the full system
+        tau = InterfaceFcn(u_lip, x_lip, x);
         
-        % Apply the torques
-        joint1_msg.Data = tau1;
-        joint2_msg.Data = tau2;
+        % Apply the torques to the full system
+        joint1_msg.Data = min(tau_max, max(tau_min, tau(1)));
+        joint2_msg.Data = min(tau_max, max(tau_min, tau(2)));
         send(joint1_pub, joint1_msg)
         send(joint2_pub, joint2_msg)
+
+        % Apply the LIP control to the LIP model
+        dx_lip = A2*x_lip + B2*u_lip;
+        x_lip = x_lip + dx_lip*dt;
+
+        % update our full system
+        x = [t1;t2;t1_dot;t2_dot]
         
-        pause(dt)
+        pause(dt-toc)
     end
+
+    pause
 
     % Shut down the gazebo simulation
     cleanupFcn(cmdout);
 catch E
-    disp(E)
+    disp(getReport(E))
     cleanupFcn(cmdout);
 end
 
 function joint_state_callback(~, data)
     % a callback function that sets global variables that represent the
     % angles of both joints
-    global theta1 theta2 theta1_dot theta2_dot;
+    global t1 t2 t1_dot t2_dot;
     
-    theta1 = data.Position(1);
-    theta2 = data.Position(2);
-    theta1_dot = data.Velocity(1);
-    theta2_dot = data.Velocity(2);
+    t1 = data.Position(1);
+    t2 = data.Position(2);
+    t1_dot = data.Velocity(1);
+    t2_dot = data.Velocity(2);
 end
 
 function cleanupFcn(pid)
