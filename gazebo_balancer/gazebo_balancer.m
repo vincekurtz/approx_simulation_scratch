@@ -44,8 +44,8 @@ try
     joint2_msg = rosmessage(joint2_pub);
     
     % Number of timesteps and time discritization
-    sim_time = 5;  % simulation time in seconds
-    dt = 1e-2;
+    sim_time = 10;  % simulation time in seconds
+    dt = 1e-3;
     Ns = sim_time/dt;
     
     pause(2) % Wait 2s
@@ -57,14 +57,22 @@ try
     % unpause the physics engine
     pause_resp = call(pause_client, pause_msg);
 
+    while (t1 == [])
+        disp("waiting for message")
+    end
 
     % Get the initial state of the robot: note that there is a mismatch between the
     % definitions of theta1, theta2 in our matlab model and in gazebo
-    x = [t1;t2;t1_dot;t2_dot]
+    x = [pi/2-t1;-t2;-t1_dot;-t2_dot];
 
     % Set the initial state of the LIP model
     com_init = x_com(x);
     x_lip = [com_init(1:2);h;0];
+
+    % Record trajectories
+    joint_trajectory = [];
+    com_trajectory = [];
+    lip_trajectory = [];
 
     for i=1:Ns        
         tic
@@ -74,10 +82,14 @@ try
 
         % Compute torques to apply based to the full system
         tau = InterfaceFcn(u_lip, x_lip, x);
+
+        % Correct for different angle definitions
+        tau1 = -tau(1);
+        tau2 = -tau(2);
         
         % Apply the torques to the full system
-        joint1_msg.Data = min(tau_max, max(tau_min, tau(1)));
-        joint2_msg.Data = min(tau_max, max(tau_min, tau(2)));
+        joint1_msg.Data = min(tau_max, max(tau_min, tau1));
+        joint2_msg.Data = min(tau_max, max(tau_min, tau2));
         send(joint1_pub, joint1_msg)
         send(joint2_pub, joint2_msg)
 
@@ -86,12 +98,17 @@ try
         x_lip = x_lip + dx_lip*dt;
 
         % update our full system
-        x = [t1;t2;t1_dot;t2_dot]
+        x = [pi/2-t1;-t2;-t1_dot;-t2_dot];
+
+        % Record the resulting trajectories
+        joint_trajectory(end+1,:) = x;
+        com_trajectory(end+1,:) = x_com(x);
+        lip_trajectory(end+1,:) = x_lip;
         
         pause(dt-toc)
     end
 
-    pause
+    disp("Simulation Finished")
 
     % Shut down the gazebo simulation
     cleanupFcn(cmdout);
