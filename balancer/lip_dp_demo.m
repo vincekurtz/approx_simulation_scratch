@@ -161,7 +161,7 @@ tau_min = [-100;-100];
 tau_max = [100;100];
 
 % Initial state of the full system
-x = [pi/4;0.1;0;0];         % initial joint states and velocities
+x = [0.9;0.1;0;0];         % initial joint states and velocities
 
 % Initial state of the LIP model
 com_init = x_com(x); 
@@ -244,6 +244,7 @@ hold on
 plot(t_sim, err);
 plot(t_sim, V_sim);
 legend("Output Error","Simulation Function");
+xlabel("time")
 
 
 % Play the animations

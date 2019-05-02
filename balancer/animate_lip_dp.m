@@ -9,13 +9,13 @@ function [] = animate_lip_dp(t_sim, x_dp, x_lip, u_lip, h)
     %    u_sim : a 1xT*dt vector of control inputs representing the position of the CoP of the LIP
     %    h     : the (fixed) height of the CoM of the LIP
 
-    figure('Position',[100 100 1000 500]);
+    figure('Position',[100 100 300 600]);
 
     x_lim = [-2.5,2.5];
     y_lim = [-1,3];
 
     % Double Pendulum animation setup
-    subplot(1,2,1)
+    subplot(2,1,1)
 
     arm_width = 0.1;
     arm_length = 1;  % our model assumes arms of unit length
@@ -42,7 +42,7 @@ function [] = animate_lip_dp(t_sim, x_dp, x_lip, u_lip, h)
     title("Rigid Body Model")
 
     % LIP animation setup
-    subplot(1,2,2)
+    subplot(2,1,2)
 
     ground_lip = plot(gca, [-15 15],[0 0],'k','LineWidth',2);
     frame0_lip = hgtransform(gca);
@@ -50,17 +50,17 @@ function [] = animate_lip_dp(t_sim, x_dp, x_lip, u_lip, h)
     % Center of pressure
     frame1_lip = hgtransform(frame0_lip);
     r = 0.1;
-    cop = rectangle('Curvature',[1,1],'Parent',frame1_lip);  % Center of pressure
-    cop.Position = [-r/2, -r/2, r, r];
-    cop.EdgeColor = 'none';
-    cop.FaceColor = 'blue';
+    %cop = rectangle('Curvature',[1,1],'Parent',frame1_lip);  % Center of pressure
+    %cop.Position = [-r/2, -r/2, r, r];
+    %cop.EdgeColor = 'none';
+    %cop.FaceColor = 'blue';
 
     % Center of mass
     frame2_lip = hgtransform(frame1_lip);
-    cop = rectangle('Curvature',[1,1],'Parent',frame2_lip);  % Center of pressure
-    cop.Position = [-r/2, -r/2, r, r];
-    cop.EdgeColor = 'none';
-    cop.FaceColor = 'red';
+    com = rectangle('Curvature',[1,1],'Parent',frame2_lip);  % Center of pressure
+    com.Position = [-r/2, -r/2, r, r];
+    com.EdgeColor = 'none';
+    com.FaceColor = 'red';
 
     % Line between COP and COM
     l = line('Parent',frame1_lip);
@@ -71,7 +71,9 @@ function [] = animate_lip_dp(t_sim, x_dp, x_lip, u_lip, h)
     axis equal
     xlim(x_lim)
     ylim(y_lim)
-    title("Reduced Order Model")
+    title("Reduced Order (LIP) Model")
+
+    %figtitle = sgtitle("t = 1s");
 
     for t = 1:length(t_sim)-1
         tic
@@ -93,6 +95,7 @@ function [] = animate_lip_dp(t_sim, x_dp, x_lip, u_lip, h)
         l.YData = [0,h];
 
         pause(dt-toc)      % Keep as close to real time as possible
+
     end
 
 end

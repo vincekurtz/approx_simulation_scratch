@@ -3,6 +3,8 @@
 clear;
 clc;
 
+% Tools for animating the results
+
 % Launch the gazebo simulation (note that matlab overwrites the
 % LD_LIBRARY_PATH, so we need to set it manually first
 [status,cmdout] = system(["./start_gazebo_sim.sh"])
@@ -18,8 +20,8 @@ try
     compute_interface;
 
     % Torque limits
-    tau_min = -100;
-    tau_max = 100;
+    tau_min = -1000;
+    tau_max = 1000;
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Simulation Setup
@@ -44,9 +46,8 @@ try
     joint2_msg = rosmessage(joint2_pub);
     
     % Number of timesteps and time discritization
-    sim_time = 10;  % simulation time in seconds
-    dt = 1e-3;
-    Ns = sim_time/dt;
+    T = 5;  % simulation time in seconds
+    dt = 1e-2;
     
     pause(2) % Wait 2s
     
@@ -57,9 +58,7 @@ try
     % unpause the physics engine
     pause_resp = call(pause_client, pause_msg);
 
-    while (t1 == [])
-        disp("waiting for message")
-    end
+    pause(0.1)
 
     % Get the initial state of the robot: note that there is a mismatch between the
     % definitions of theta1, theta2 in our matlab model and in gazebo
@@ -73,8 +72,9 @@ try
     joint_trajectory = [];
     com_trajectory = [];
     lip_trajectory = [];
+    lip_control = [];
 
-    for i=1:Ns        
+    for timestep=1:dt:T
         tic
         % Compute the LIP control that will let us balance.
         % Only the x position and velocity are considered
@@ -90,6 +90,7 @@ try
         % Apply the torques to the full system
         joint1_msg.Data = min(tau_max, max(tau_min, tau1));
         joint2_msg.Data = min(tau_max, max(tau_min, tau2));
+
         send(joint1_pub, joint1_msg)
         send(joint2_pub, joint2_msg)
 
@@ -104,6 +105,7 @@ try
         joint_trajectory(end+1,:) = x;
         com_trajectory(end+1,:) = x_com(x);
         lip_trajectory(end+1,:) = x_lip;
+        lip_control(end+1,:) = u_lip;
         
         pause(dt-toc)
     end
@@ -116,6 +118,30 @@ catch E
     disp(getReport(E))
     cleanupFcn(cmdout);
 end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Playback and analysis of the results
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Plot the net error and Bisimulation function
+t_sim = 1:dt:T;
+err = zeros(size(t_sim));
+V_sim = zeros(size(t_sim));
+for t = 1:length(t_sim)
+    err(t) = (lip_trajectory(t,:)-com_trajectory(t,:))*(lip_trajectory(t,:)-com_trajectory(t,:))';
+    V_sim(t) = SimulationFcn(lip_trajectory(t,:)',joint_trajectory(t,:)');
+end
+figure;
+hold on
+plot(t_sim, err);
+plot(t_sim, V_sim);
+legend("Output Error","Simulation Function");
+xlabel("time")
+
+% Play back an animation of both the lip and the full model
+addpath("../balancer")
+animate_lip_dp(1:dt:T, joint_trajectory, lip_trajectory, lip_control, h)
+
 
 function joint_state_callback(~, data)
     % a callback function that sets global variables that represent the
