@@ -73,12 +73,12 @@ try
     com_trajectory = [];
     lip_trajectory = [];
     lip_control = [];
-
+        
     for timestep=1:dt:T
         tic
         % Compute the LIP control that will let us balance.
         % Only the x position and velocity are considered
-        u_lip = -K_lip*x_lip(1:2);
+        u_lip = LIPController(x_lip, omega, dt);
 
         % Compute torques to apply based to the full system
         tau = InterfaceFcn(u_lip, x_lip, x);
