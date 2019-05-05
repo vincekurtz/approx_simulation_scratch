@@ -47,7 +47,7 @@ try
     
     % Number of timesteps and time discritization
     T = 5;  % simulation time in seconds
-    dt = 1e-2;
+    dt = 3e-2;
     
     pause(2) % Wait 2s
     
@@ -67,6 +67,7 @@ try
     % Set the initial state of the LIP model
     com_init = x_com(x);
     x_lip = [com_init(1:2);h;0];
+    x_lip = [0.6517;0.3131;h;0];
 
     % Record trajectories
     joint_trajectory = [];
@@ -77,10 +78,16 @@ try
     for timestep=1:dt:T
         tic
         % Compute the LIP control that will let us balance.
-        % Only the x position and velocity are considered
         u_lip = LIPController(x_lip, omega, dt);
+        
+        % Apply the LIP control to the LIP model
+        dx_lip = A2*x_lip + B2*u_lip;
+        x_lip = x_lip + dx_lip*dt;
 
-        % Compute torques to apply based to the full system
+        % Get full system state
+        x = [pi/2-t1;-t2;-t1_dot;-t2_dot];
+
+        % Compute torques to apply to the full system
         tau = InterfaceFcn(u_lip, x_lip, x);
 
         % Correct for different angle definitions
@@ -93,13 +100,6 @@ try
 
         send(joint1_pub, joint1_msg)
         send(joint2_pub, joint2_msg)
-
-        % Apply the LIP control to the LIP model
-        dx_lip = A2*x_lip + B2*u_lip;
-        x_lip = x_lip + dx_lip*dt;
-
-        % update our full system
-        x = [pi/2-t1;-t2;-t1_dot;-t2_dot];
 
         % Record the resulting trajectories
         joint_trajectory(end+1,:) = x;

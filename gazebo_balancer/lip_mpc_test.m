@@ -5,19 +5,21 @@ clear all;clc;
 % System definition
 h = 0.75;
 g = 9.812;
-omega = g/h;
+omega = sqrt(g/h);
 
 A = [0 1; omega^2 0];
 B = [0 ; -omega^2];
 
 % Simulation
-dt = 1e-2;
+dt = 3e-2;
 T = 5;
 
 state_trajectory = [];
 control_trajectory = [];
-x = [0.6;0];
+x = [0.6517;0.3131];
 for t=0:dt:T
+    disp(t)
+
     u = LIPController(x, omega, dt);
 
     xdot = A*x + B*u;
