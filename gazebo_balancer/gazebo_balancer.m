@@ -20,8 +20,8 @@ try
     compute_interface;
 
     % Torque limits
-    tau_min = -1000;
-    tau_max = 1000;
+    tau_min = -100;
+    tau_max = 100;
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Simulation Setup
@@ -47,7 +47,7 @@ try
     
     % Number of timesteps and time discritization
     T = 5;  % simulation time in seconds
-    dt = 3e-2;
+    dt = 5e-2;
     
     pause(2) % Wait 2s
     
@@ -58,7 +58,7 @@ try
     % unpause the physics engine
     pause_resp = call(pause_client, pause_msg);
 
-    pause(0.1)
+    pause(0.05)
 
     % Get the initial state of the robot: note that there is a mismatch between the
     % definitions of theta1, theta2 in our matlab model and in gazebo
@@ -67,33 +67,45 @@ try
     % Set the initial state of the LIP model
     com_init = x_com(x);
     x_lip = [com_init(1:2);h;0];
-    x_lip = [0.6517;0.3131;h;0];
+
+    % Initial value of the simulation function: we can treat as an error bound
+    % between the LIP model state and the true model state
+    V = SimulationFcn(x_lip, x)
 
     % Record trajectories
     joint_trajectory = [];
     com_trajectory = [];
     lip_trajectory = [];
     lip_control = [];
+    forces = [];
         
     for timestep=1:dt:T
         tic
+
+        % Compute CWC constraints for contact
+        x = [pi/2-t1;-t2;-t1_dot;-t2_dot];  % Update the full system state
+
+
         % Compute the LIP control that will let us balance.
-        u_lip = LIPController(x_lip, omega, dt);
-        
+        u_lip_max = 0.34;   % control bound
+        %u_lip_max = u_lip_max - V;  % Account for the error between the LIP model and the DP model
+        u_lip = LIPController(x_lip, u_lip_max, omega, dt);
+   
         % Apply the LIP control to the LIP model
         dx_lip = A2*x_lip + B2*u_lip;
         x_lip = x_lip + dx_lip*dt;
 
-        % Get full system state
-        x = [pi/2-t1;-t2;-t1_dot;-t2_dot];
-
         % Compute torques to apply to the full system
+        x = [pi/2-t1;-t2;-t1_dot;-t2_dot];  % Update the full system state since LIPController takes some time
         tau = InterfaceFcn(u_lip, x_lip, x);
+        
+        %DEBUG
+        forces(end+1,:) = J(x(1:2))'*tau + [0;m*g];
 
         % Correct for different angle definitions
         tau1 = -tau(1);
         tau2 = -tau(2);
-        
+
         % Apply the torques to the full system
         joint1_msg.Data = min(tau_max, max(tau_min, tau1));
         joint2_msg.Data = min(tau_max, max(tau_min, tau2));
@@ -141,6 +153,19 @@ xlabel("time")
 % Play back an animation of both the lip and the full model
 addpath("../balancer")
 animate_lip_dp(1:dt:T, joint_trajectory, lip_trajectory, lip_control, h)
+
+% Evaluate where we lost contact
+contact = [];
+for t = 1:length(t_sim)
+    x = joint_trajectory(t,:)';
+    q = x(1:2);
+    f_com = forces(t,:)';
+    valid = check_force(f_com, com_Xf_c1(q), com_Xf_c2(q));
+   
+    contact(end+1) = valid
+end
+figure;
+plot(contact)
 
 
 function joint_state_callback(~, data)

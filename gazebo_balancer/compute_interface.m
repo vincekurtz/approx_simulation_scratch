@@ -42,6 +42,7 @@ x_sym = [q_sym;qd_sym];
 u_sym = [tau1;tau2];
 
 dp_model = autoTree(2);   % an unbranched kinematic tree with 2 bodies
+m = 2;  % total mass
 dp_model.gravity = [0;-g;0];
 qdd_sym = FDab( dp_model, q_sym, qd_sym, u_sym);
 f_sym = [qd_sym; qdd_sym];
@@ -70,6 +71,30 @@ Jdot = matlabFunction(Jdot_sym, 'vars', {q_sym, qd_sym});
 pc_dot_sym = J_sym*qd_sym;   % center of mass velocity
 x_com_sym = [pc_sym(1);pc_dot_sym(1);pc_sym(2);pc_dot_sym(2)];
 x_com = matlabFunction(x_com_sym, 'vars', {x_sym});
+
+% Define transformations from ground contacts to the center of mass
+foot_width = 1.0;
+c1 = [foot_width/2 0 0];    % we'll consider two contacts along the x-axis
+c2 = [-foot_width/2 0 0];
+
+% Spatial transforms from contact to base frame
+o_X_c1 = xlt(c1);  
+o_X_c2 = xlt(c2);
+
+% Spatial transforms from base frame to COM
+com_X_o = xlt([xc_sym yc_sym 0]);
+
+% Spatial transforms from contact to COM
+com_X_c1_sym = com_X_o*o_X_c1;
+com_X_c2_sym = com_X_o*o_X_c2;
+com_X_c1 = matlabFunction(com_X_c1_sym, 'vars', {x_sym});  % express as a function of [q,qdot]
+com_X_c2 = matlabFunction(com_X_c2_sym, 'vars', {x_sym});
+
+% Force transforms from contact to COM
+com_Xf_c1_sym = inv(com_X_c1_sym)';
+com_Xf_c2_sym = inv(com_X_c2_sym)';
+com_Xf_c1 = matlabFunction(com_Xf_c1_sym, 'vars', {x_sym});  % express as a function of [q,qdot]
+com_Xf_c2 = matlabFunction(com_Xf_c2_sym, 'vars', {x_sym});
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Interface Design                                              %

@@ -1,18 +1,7 @@
-function [res,f_c1,f_c2] = check_force(f_com, p_com)
+function [res,f_c1,f_c2] = check_force(f_com, com_Xf_c1, com_Xf_c2)
     % This function checks if the following force f_com in the x-y plane
-    % is valid, returning true if yes and otherwise no. Depends on the current
-    % position of the center of mass, p_com
-
-    p_c1 = [0.5;0];  % positions of foot contacts
-    p_c2 = [-0.5;0]; 
-
-    % position of com in the contact frames
-    c1_p_com = p_com - p_c1;
-    c2_p_com = p_com - p_c2;
-
-    % Projection matrix onto the vector from the contact to the center of mass
-    P1 = (c1_p_com*c1_p_com')/(c1_p_com'*c1_p_com);
-    P2 = (c2_p_com*c2_p_com')/(c2_p_com'*c2_p_com);
+    % is valid, returning 1 if yes and otherwise 0. Depends on the current
+    % spatial force transforms to the center of mass 
 
     mu = 0.3;
     cvx_begin quiet
@@ -22,7 +11,7 @@ function [res,f_c1,f_c2] = check_force(f_com, p_com)
         minimize(0)
         subject to
             % forces must sum up to the net result
-            f_com == P1*f_c1 + P2*f_c2;
+            [0;0;0;f_com;0] == com_Xf_c1*[0;0;0;f_c1;0] + com_Xf_c2*[0;0;0;f_c2;0]
 
             % forces must obey friction
             norm(f_c1(1)) <= mu*f_c1(2)
@@ -30,9 +19,6 @@ function [res,f_c1,f_c2] = check_force(f_com, p_com)
     cvx_end
 
     if cvx_status=="Solved"
-        f_c1;
-        f_c2;
-        f_com = P1*f_c1 + P2*f_c2;
         res = 1;
     else
         res = 0;
