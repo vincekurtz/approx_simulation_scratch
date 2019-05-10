@@ -47,9 +47,9 @@ try
     
     % Number of timesteps and time discritization
     T = 5;  % simulation time in seconds
-    dt = 5e-2;
+    dt = 1e-2;
     
-    pause(2) % Wait 2s
+    pause(2) % Wait 2s to initialize ROS
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Simulation
@@ -58,7 +58,7 @@ try
     % unpause the physics engine
     pause_resp = call(pause_client, pause_msg);
 
-    pause(0.05)
+    pause(0.05)   % wait to start getting joint state messages
 
     % Get the initial state of the robot: note that there is a mismatch between the
     % definitions of theta1, theta2 in our matlab model and in gazebo
@@ -77,74 +77,40 @@ try
     com_trajectory = [];
     lip_trajectory = [];
     lip_control = [];
-    forces = [];
-    force_contact = [];
-    ulip_contact = [];
         
     for timestep=1:dt:T
         tic
 
-        % Compute CWC constraints for contact
-        x = [pi/2-t1;-t2;-t1_dot;-t2_dot];  % Update the full system state
-
-        % Parameters for the LIP MPC controller
-        control_params.A_lip = A2;
-        control_params.B_lip = B2;
-
-        control_params.x = x;
-        control_params.q = x(1:2);
-        control_params.qdot = x(3:4);
-
-        control_params.H = H(x(1:2));
-        control_params.C = C(x(1:2),x(3:4));
-
-        control_params.x_lip = x_lip;
-        control_params.x_com = x_com(x);
-
-        control_params.K = K_joint;  % interface parameters
-        control_params.Qif = Q;
-        control_params.Rif = R;
-
-        control_params.Jcom = J(x(1:2));
-        control_params.Jcom_dot = Jdot(x(1:2),x(3:4));
-        control_params.dt = dt;
-        control_params.u_max = 0.55;
-        
+        tic
         % Compute the LIP control that will let us balance.
         u_lip = -K_lip*x_lip(1:2);
-        %u_lip = LIPController(x_lip, control_params);
    
         % Apply the LIP control to the LIP model
         dx_lip = A2*x_lip + B2*u_lip;
         x_lip = x_lip + dx_lip*dt;
 
-        % Compute virtual control for the feedback linearized system
-        x = [pi/2-t1;-t2;-t1_dot;-t2_dot];  % Update the full system state since LIPController takes some time
+        % Compute double pendulum state (joint angle definitions differ from Gazebo)
+        x = [pi/2-t1;-t2;-t1_dot;-t2_dot];
         q = x(1:2); qd = x(3:4);
+
+        % Compute virtual control for the feedback linearized system
         u_com = R*u_lip + Q*x_lip + K_joint*(x_com(x)-P*x_lip);
 
         % Restrict this virtual control to obey contact constraints
-        u_com = constrain_ucom(u_com, control_params);
+        control_params.H = H(q);
+        control_params.C = C(q,qd);
+        control_params.Jcom = J(q);
+        control_params.Jcom_dot = Jdot(q,qd);
+        control_params.qdot = qd;
+        control_params.mu = 0.2;   %  friction coefficient
+        %u_com = constrain_ucom(u_com, control_params);
 
         % Compute torques to apply to the full system
-        x = [pi/2-t1;-t2;-t1_dot;-t2_dot];  % Update the full system state since LIPController takes some time
-        q = x(1:2); qd = x(3:4);
         tau = H(q)*inv(J(q))*(u_com - Jdot(q,qd)*qd) + C(q,qd);
         
-        %%DEBUG
-        %f_com = inv(J(q)')*tau;
-        %force_contact(end+1) = check_force(f_com);
-        %ulip_contact(end+1) = check_ulip(u_lip, control_params);
-        forces(end+1,:) = inv(J(x(1:2))')*tau;
-
-        % Correct for different angle definitions
-        tau1 = -tau(1);
-        tau2 = -tau(2);
-
-        % Apply the torques to the full system
-        joint1_msg.Data = min(tau_max, max(tau_min, tau1));
-        joint2_msg.Data = min(tau_max, max(tau_min, tau2));
-
+        % Apply the torques to the full system  
+        joint1_msg.Data = min(tau_max, max(tau_min, -tau(1)));   % torque limits + correct for angle definitions
+        joint2_msg.Data = min(tau_max, max(tau_min, -tau(2)));
         send(joint1_pub, joint1_msg)
         send(joint2_pub, joint2_msg)
 
@@ -153,6 +119,7 @@ try
         com_trajectory(end+1,:) = x_com(x);
         lip_trajectory(end+1,:) = x_lip;
         lip_control(end+1,:) = u_lip;
+        toc
         
         pause(dt-toc)
     end
@@ -186,23 +153,12 @@ legend("Output Error","Simulation Function");
 xlabel("time")
 
 % Play back an animation of both the lip and the full model
-%addpath("../balancer")
-%animate_lip_dp(1:dt:T, joint_trajectory, lip_trajectory, lip_control, h)
+addpath("../balancer")
+animate_lip_dp(1:dt:T, joint_trajectory, lip_trajectory, lip_control, h)
 
-% Plot forces applied
-figure;
-title("Forces")
-plot(t_sim,forces);
-legend("Horizontal","Vertical")
-
-% Evaluate where we lost contact
-%figure;
-%hold on
-%plot(force_contact)  % based on force criterion
-%plot(ulip_contact)   % based on u_lip criterion
-%legend("check_force","check_ulip");
-
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Helper Functions
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function joint_state_callback(~, data)
     % a callback function that sets global variables that represent the
     % angles of both joints

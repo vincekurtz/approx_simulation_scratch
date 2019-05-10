@@ -30,7 +30,10 @@ omega = sqrt(g/h);
 A_lip = [0 1; omega^2 0];
 B_lip = [0; -omega^2];
 
-K_lip = lqr(A_lip, B_lip, eye(2), 100);  % stabilizing feedback control gain
+% Stabilizing controller to balance the LIP
+Q_lip = diag([10;1]);
+R_lip = 1.0
+K_lip = lqr(A_lip, B_lip, Q_lip, R_lip);  % Stabilizing gain to balance the LIP
 
 % Double Pendulum
 syms theta1 theta2 theta1_dot theta2_dot real;

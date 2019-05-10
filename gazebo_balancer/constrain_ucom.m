@@ -2,7 +2,7 @@ function u_com = constrain_ucom(u_com_des, params)
     % Use the CWC criterion to constrain the input to the feedback-linearized
     % model such that contact constraints are enforced.
 
-    mu = 0.3;  % coefficient of friction
+    mu = params.mu;  % coefficient of friction
 
     % CasADi formulation
     import casadi.*
