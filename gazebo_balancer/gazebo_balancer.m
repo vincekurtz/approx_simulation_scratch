@@ -78,6 +78,8 @@ try
     lip_trajectory = [];
     lip_control = [];
     forces = [];
+    force_contact = [];
+    ulip_contact = [];
         
     for timestep=1:dt:T
         tic
@@ -85,11 +87,31 @@ try
         % Compute CWC constraints for contact
         x = [pi/2-t1;-t2;-t1_dot;-t2_dot];  % Update the full system state
 
+        % Parameters for the LIP MPC controller
+        control_params.A_lip = A2;
+        control_params.B_lip = B2;
 
+        control_params.x = x;
+        control_params.q = x(1:2);
+        control_params.qdot = x(3:4);
+
+        control_params.H = H(x(1:2));
+        control_params.C = C(x(1:2),x(3:4));
+
+        control_params.x_lip = x_lip;
+        control_params.x_com = x_com(x);
+
+        control_params.K = K_joint;  % interface parameters
+        control_params.Qif = Q;
+        control_params.Rif = R;
+
+        control_params.Jcom = J(x(1:2));
+        control_params.Jcom_dot = Jdot(x(1:2),x(3:4));
+        control_params.dt = dt;
+        control_params.u_max = 0.55;
+        
         % Compute the LIP control that will let us balance.
-        u_lip_max = 0.34;   % control bound
-        %u_lip_max = u_lip_max - V;  % Account for the error between the LIP model and the DP model
-        u_lip = LIPController(x_lip, u_lip_max, omega, dt);
+        u_lip = LIPController(x_lip, control_params);
    
         % Apply the LIP control to the LIP model
         dx_lip = A2*x_lip + B2*u_lip;
@@ -100,7 +122,11 @@ try
         tau = InterfaceFcn(u_lip, x_lip, x);
         
         %DEBUG
-        forces(end+1,:) = J(x(1:2))'*tau + [0;m*g];
+        q = x(1:2);
+        f_com = inv(J(q)')*tau;
+        force_contact(end+1) = check_force(f_com);
+        ulip_contact(end+1) = check_ulip(u_lip, control_params);
+        forces(end+1,:) = inv(J(x(1:2))')*tau;
 
         % Correct for different angle definitions
         tau1 = -tau(1);
@@ -151,21 +177,21 @@ legend("Output Error","Simulation Function");
 xlabel("time")
 
 % Play back an animation of both the lip and the full model
-addpath("../balancer")
-animate_lip_dp(1:dt:T, joint_trajectory, lip_trajectory, lip_control, h)
+%addpath("../balancer")
+%animate_lip_dp(1:dt:T, joint_trajectory, lip_trajectory, lip_control, h)
+
+% Plot forces applied
+figure;
+title("Forces")
+plot(t_sim,forces);
+legend("Horizontal","Vertical")
 
 % Evaluate where we lost contact
-contact = [];
-for t = 1:length(t_sim)
-    x = joint_trajectory(t,:)';
-    q = x(1:2);
-    f_com = forces(t,:)';
-    valid = check_force(f_com, com_Xf_c1(q), com_Xf_c2(q));
-   
-    contact(end+1) = valid
-end
 figure;
-plot(contact)
+hold on
+plot(force_contact)  % based on force criterion
+plot(ulip_contact)   % based on u_lip criterion
+legend("check_force","check_ulip");
 
 
 function joint_state_callback(~, data)
