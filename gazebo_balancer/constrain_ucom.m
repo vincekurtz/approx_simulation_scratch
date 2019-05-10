@@ -36,6 +36,6 @@ function u_com = constrain_ucom(u_com_des, params)
     S = qpsol('S','qpoases',qp);
     res = S('lbg',lbg,'ubg',ubg);
     
-    u_com = res.x(5:6);
+    u_com = full(res.x(5:6));  % convert to double
 
 end

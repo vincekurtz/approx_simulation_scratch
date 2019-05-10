@@ -5,7 +5,7 @@ function res = check_ulip(u_lip, params)
     mu = 0.3;
 
     % Compute the resulting force on the COM
-    xdd_com = params.Rif*u_lip + params.Qif*params.x_lip + params.K*(params.x_com-params.x_lip);
+    xdd_com = params.Rif*u_lip + params.Qif*params.x_lip + params.K*(params.x_com-params.x_lip)
     tau = InterfaceFcn(u_lip, params.x_lip, params.x);
     f_com = inv(params.Jcom')*tau; 
 
@@ -19,9 +19,11 @@ function res = check_ulip(u_lip, params)
     u_lip
     Rbar*(xdd_com - params.Qif*params.x_lip - params.K*(params.x_com-params.x_lip))
 
+    % Equality constraints considering xdd_com
     A_eq = params.Jcom*inv(params.H)*(params.Jcom'*[eye(2) eye(2)]);
     b_eq = params.Jcom*inv(params.H)*(-params.C)+params.Jcom_dot*params.qdot;
 
+    % Equality constraints considering u_lip
     A_ineq = [ 1 -mu  0   0;      % Inequality (cone) constraint
               -1 -mu  0   0;
                0   0  1 -mu;

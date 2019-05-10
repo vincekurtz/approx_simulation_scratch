@@ -111,21 +111,30 @@ try
         control_params.u_max = 0.55;
         
         % Compute the LIP control that will let us balance.
-        u_lip = LIPController(x_lip, control_params);
+        u_lip = -K_lip*x_lip(1:2);
+        %u_lip = LIPController(x_lip, control_params);
    
         % Apply the LIP control to the LIP model
         dx_lip = A2*x_lip + B2*u_lip;
         x_lip = x_lip + dx_lip*dt;
 
+        % Compute virtual control for the feedback linearized system
+        x = [pi/2-t1;-t2;-t1_dot;-t2_dot];  % Update the full system state since LIPController takes some time
+        q = x(1:2); qd = x(3:4);
+        u_com = R*u_lip + Q*x_lip + K_joint*(x_com(x)-P*x_lip);
+
+        % Restrict this virtual control to obey contact constraints
+        u_com = constrain_ucom(u_com, control_params);
+
         % Compute torques to apply to the full system
         x = [pi/2-t1;-t2;-t1_dot;-t2_dot];  % Update the full system state since LIPController takes some time
-        tau = InterfaceFcn(u_lip, x_lip, x);
+        q = x(1:2); qd = x(3:4);
+        tau = H(q)*inv(J(q))*(u_com - Jdot(q,qd)*qd) + C(q,qd);
         
-        %DEBUG
-        q = x(1:2);
-        f_com = inv(J(q)')*tau;
-        force_contact(end+1) = check_force(f_com);
-        ulip_contact(end+1) = check_ulip(u_lip, control_params);
+        %%DEBUG
+        %f_com = inv(J(q)')*tau;
+        %force_contact(end+1) = check_force(f_com);
+        %ulip_contact(end+1) = check_ulip(u_lip, control_params);
         forces(end+1,:) = inv(J(x(1:2))')*tau;
 
         % Correct for different angle definitions
@@ -187,11 +196,11 @@ plot(t_sim,forces);
 legend("Horizontal","Vertical")
 
 % Evaluate where we lost contact
-figure;
-hold on
-plot(force_contact)  % based on force criterion
-plot(ulip_contact)   % based on u_lip criterion
-legend("check_force","check_ulip");
+%figure;
+%hold on
+%plot(force_contact)  % based on force criterion
+%plot(ulip_contact)   % based on u_lip criterion
+%legend("check_force","check_ulip");
 
 
 function joint_state_callback(~, data)
