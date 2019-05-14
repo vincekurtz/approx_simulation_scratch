@@ -13,9 +13,16 @@ function u_com = constrain_ucom(u_com_des, params)
     u_com = MX.sym('u_com',2,1);
 
     % Equality (dynamic) constraints
-    A_eq = params.Jcom*inv(params.H)*(params.Jcom'*[eye(2) eye(2)]);
-    A_eq = [A_eq, -eye(2)];
-    b_eq = -params.Jcom*inv(params.H)*(-params.C)-params.Jcom_dot*params.qdot;
+    A_eq = params.Jcom*inv(params.H)*(params.Jcom'*[eye(2) eye(2)]);  % sum of forces constraint
+    A_eq = [A_eq, -eye(2)]; 
+    b_eq = params.Jcom*inv(params.H)*(params.C)-params.Jcom_dot*params.qdot;
+
+    S = [0 0 1 0 0 0];      % "cross product" constraint (resulting torque on COM must be zero)
+    C = [zeros(3,2);eye(2);zeros(1,2)];
+    A_cross = [S*params.X1*C S*params.X2*C zeros(1,2)];
+    b_cross = 0;
+    A_eq = [A_eq; A_cross];
+    b_eq = [b_eq; 0];
 
     % Inequality (friction cone) constraints
     A_ineq = [ 1 -mu  0   0;

@@ -77,6 +77,11 @@ try
     com_trajectory = [];
     lip_trajectory = [];
     lip_control = [];
+
+    % DEBUG
+    forces = [];
+    X1s = {};
+    X2s = {};
         
     for timestep=1:dt:T
         tic
@@ -102,11 +107,18 @@ try
         control_params.Jcom = J(q);
         control_params.Jcom_dot = Jdot(q,qd);
         control_params.qdot = qd;
-        control_params.mu = 0.2;   %  friction coefficient
-        %u_com = constrain_ucom(u_com, control_params);
+        control_params.mu = 0.3;            %  friction coefficient
+        control_params.X1 = com_Xf_c1(x);   % force transform from contact 1 to COM
+        control_params.X2 = com_Xf_c2(x);   % force transform from contact 2 to COM
+        u_com = constrain_ucom(u_com, control_params);
 
         % Compute torques to apply to the full system
         tau = H(q)*inv(J(q))*(u_com - Jdot(q,qd)*qd) + C(q,qd);
+
+        % DEBUG: record resulting force on COM
+        X1s{end+1} = com_Xf_c1(x);
+        X2s{end+1} = com_Xf_c2(x);
+        forces(end+1,:) = inv(J(q))'*tau;
         
         % Apply the torques to the full system  
         joint1_msg.Data = min(tau_max, max(tau_min, -tau(1)));   % torque limits + correct for angle definitions
@@ -151,6 +163,25 @@ plot(t_sim, err);
 plot(t_sim, V_sim);
 legend("Output Error","Simulation Function");
 xlabel("time")
+
+% Check whether the forces satisfy the CWC criterion
+force_check = [];
+force_check2 = [];
+for t = 1:length(t_sim)
+    force_check(end+1) = check_force(forces(t,:)');
+    force_check2(end+1) = check_force2(forces(t,:)', X1s{t}, X2s{t});
+end
+figure;
+subplot(2,1,1)
+plot(forces)
+title("forces")
+subplot(2,1,2)
+hold on;
+plot(force_check)
+plot(force_check2)
+legend("force\_check","force\_check2")
+title("force check")
+ylim([-1,2])
 
 % Play back an animation of both the lip and the full model
 addpath("../balancer")

@@ -76,7 +76,7 @@ x_com_sym = [pc_sym(1);pc_dot_sym(1);pc_sym(2);pc_dot_sym(2)];
 x_com = matlabFunction(x_com_sym, 'vars', {x_sym});
 
 % Define transformations from ground contacts to the center of mass
-foot_width = 1.0;
+foot_width = 0.75;   % under-approximation since the gazebo model's foot is a bit lower than we assume
 c1 = [foot_width/2 0 0];    % we'll consider two contacts along the x-axis
 c2 = [-foot_width/2 0 0];
 
