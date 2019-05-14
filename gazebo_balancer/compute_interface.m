@@ -32,7 +32,7 @@ B_lip = [0; -omega^2];
 
 % Stabilizing controller to balance the LIP
 Q_lip = diag([10;1]);
-R_lip = 1.0
+R_lip = 1.0;
 K_lip = lqr(A_lip, B_lip, Q_lip, R_lip);  % Stabilizing gain to balance the LIP
 
 % Double Pendulum
@@ -76,7 +76,7 @@ x_com_sym = [pc_sym(1);pc_dot_sym(1);pc_sym(2);pc_dot_sym(2)];
 x_com = matlabFunction(x_com_sym, 'vars', {x_sym});
 
 % Define transformations from ground contacts to the center of mass
-foot_width = 0.75;   % under-approximation since the gazebo model's foot is a bit lower than we assume
+foot_width = 0.75;          % conservative under-approximation of foot width
 c1 = [foot_width/2 0 0];    % we'll consider two contacts along the x-axis
 c2 = [-foot_width/2 0 0];
 
