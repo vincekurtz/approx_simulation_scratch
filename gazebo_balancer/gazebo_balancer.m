@@ -46,7 +46,7 @@ try
     joint2_msg = rosmessage(joint2_pub);
     
     % Number of timesteps and time discritization
-    T = 5;  % simulation time in seconds
+    T = 10;  % simulation time in seconds
     dt = 3e-2;  % note that we get joint angles from ROS at ~50Hz
     
     pause(2) % Wait 2s to initialize ROS
@@ -85,10 +85,6 @@ try
         % Compute the LIP control that will let us balance.
         u_lip = -K_lip*x_lip(1:2);
    
-        % Apply the LIP control to the LIP model
-        dx_lip = A2*x_lip + B2*u_lip;
-        x_lip = x_lip + dx_lip*dt;
-
         % Compute double pendulum state (joint angle definitions differ from Gazebo)
         x = [pi/2-t1;-t2;-t1_dot;-t2_dot];
         q = x(1:2); qd = x(3:4);
@@ -97,14 +93,25 @@ try
         u_com = R*u_lip + Q*x_lip + K_joint*(x_com(x)-P*x_lip);
 
         % Restrict this virtual control to obey contact constraints
-        control_params.H = H(q);
+        control_params.H = H(q);           % Full robot configuration parameters
         control_params.C = C(q,qd);
         control_params.Jcom = J(q);
         control_params.Jcom_dot = Jdot(q,qd);
         control_params.qdot = qd;
+
         control_params.mu = 0.1;            %  friction coefficient (conservative estimate)
         control_params.X1 = com_Xf_c1(x);   % force transform from contact 1 to COM
         control_params.X2 = com_Xf_c2(x);   % force transform from contact 2 to COM
+
+        control_params.M = M;               % Parameterization of the simulation function
+        control_params.x_com = x_com(x);
+        control_params.x_lip = x_lip;
+        control_params.u_lip = u_lip;
+        control_params.A_com = A1;
+        control_params.B_com = B1;
+        control_params.A_lip = A2;
+        control_params.B_lip = B2;
+        control_params.dt = dt;
         u_com = constrain_ucom(u_com, control_params);
 
         % Compute torques to apply to the full system
@@ -115,6 +122,10 @@ try
         joint2_msg.Data = min(tau_max, max(tau_min, -tau(2)));
         send(joint1_pub, joint1_msg)
         send(joint2_pub, joint2_msg)
+        
+        % Apply the LIP control to the LIP model
+        dx_lip = A2*x_lip + B2*u_lip;
+        x_lip = x_lip + dx_lip*dt;
 
         % Record the resulting trajectories
         joint_trajectory(end+1,:) = x;

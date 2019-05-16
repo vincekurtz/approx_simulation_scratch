@@ -33,14 +33,23 @@ function u_com = constrain_ucom(u_com_des, params)
     ubg = [b_eq; zeros(4,1)]; 
     lbg = [b_eq; -Inf(4,1)];
 
+    % QP setup
     qp = struct;
     qp.x = vertcat(f_c1,f_c2, u_com);            % decision variables
-    qp.f = (u_com_des-u_com)'*(u_com_des-u_com); % objective function
-    qp.g = A*[f_c1;f_c2;u_com];                        % constraints
 
+    % Objective function minimizes simulation function V(x)
+    x_lip_plus = params.x_lip + (params.A_lip*params.x_lip + params.B_lip*params.u_lip)*params.dt;
+    x_com_plus = params.x_com + (params.A_com*params.x_com + params.B_com*u_com)*params.dt;
+    qp.f = (x_com_plus-x_lip_plus)'*params.M*(x_com_plus-x_lip_plus);
+
+    % Constraints to ensure that we remain in contact
+    qp.g = A*[f_c1;f_c2;u_com];
+
+    % Solve the QP
     S = qpsol('S','qpoases',qp);
     res = S('lbg',lbg,'ubg',ubg);
     
     u_com = full(res.x(5:6));  % convert to double
+
 
 end
