@@ -17,7 +17,10 @@ load('balancer_model')
 % Simulation parameters
 T = 10;     % simulation time
 dt = 1e-2;  % timestep
-x = 0.5*ones(2*model.NB,1);   % initial state
+
+q0 = [0.2;0.2;0.2;0.4];
+qd0 = zeros(4,1);
+x = [q0;qd0];   % initial state
 
 % Simulation
 state_trajectory = [];
@@ -31,7 +34,7 @@ for t = 1:dt:T
     qd = x(model.NB+1:end);  
 
     x_lin = [p_com(q);J(q)*qd];
-    x_des = [0;1.0;0;0];
+    x_des = [0;1.5;0;0];
 
     K = [1 0 1.7 0; 0 1 0 1.7];
     v = -K*(x_lin-x_des);       % virtual control for linearized system

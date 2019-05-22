@@ -22,12 +22,12 @@ clear all; close all; clc;
 model = autoTree(3);
 
 % Add an "arm"
-%model.NB = 4;
-%model.jtype = {'R', 'R', 'R', 'R'};
-%model.parent = [0 1 2 2];
-%model.Xtree{end+1} = model.Xtree{end};  % just copy existing spatial transforms and inertias
-%model.I{end+1} = model.I{end};
-%model.appearance.body{end+1} = model.appearance.body{end};
+model.NB = 4;
+model.jtype = {'R', 'R', 'R', 'R'};
+model.parent = [0 1 2 2];
+model.Xtree{end+1} = model.Xtree{end};  % just copy existing spatial transforms and inertias
+model.I{end+1} = model.I{end};
+model.appearance.body{end+1} = model.appearance.body{end};
 
 % Add gravity in the -y direction
 model.gravity = [0;-9.81;0];
