@@ -22,7 +22,7 @@ setup_interface
 T = 10;     % simulation time
 dt = 1e-2;  % timestep
 
-q0 = [0.2;0.2;0.2;0.4];   % initial state of full model
+q0 = [0.9;0.2;0.2;0.4];   % initial state of full model
 qd0 = zeros(4,1);
 x = [q0;qd0];
 
