@@ -1,6 +1,19 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Script to create a model of a multi-link balancer using
-% the spatial_v2 library
+% the spatial_v2 library.
+%
+% Generates and saves the following files:
+%   - BalancerDynamics.m : equations of motion of the balancer
+%   - p_com.m            : position of the center of mass as
+%                           a function of joint angles q
+%   - pd_com.m           : velocity of the center of mass as
+%                           a function of q and qdot
+%   - J.m                : Center of mass jacobian
+%   - Jdot.m             : time derivative of CoM jacobian
+%   - H.m                : joint-space intertia matrix
+%   - C.m                : correolis and gravitational terms
+%   - Lambda.m           : task-space (CoM) inertial matrix
+%   - balancer_model.mat : spatial_v2 model of the balancer
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 clear all; close all; clc;
@@ -36,7 +49,6 @@ x_sym = [q_sym;qd_sym];
 
 qdd_sym = FDab(model, q_sym, qd_sym, tau_sym);
 f_sym = [qd_sym; qdd_sym];
-f_func = matlabFunction(f_sym, 'file', 'BalancerDynamics', 'vars', {x_sym, u_sym});
 
 % Feedback linearization
 disp("===> Computing Feedback Linearization")
@@ -62,6 +74,9 @@ Jdot_sym = jacobian(vpc_sym, q_sym);
 Lambda_sym = inv(J_sym*inv(H_sym)*J_sym');
 
 % Generate matlab functions for relevant quantities
+disp("===> Saving Functions and Model File")
+f_func = matlabFunction(f_sym, 'file', 'BalancerDynamics', 'vars', {x_sym, u_sym});
+
 p_com_func = matlabFunction(pc_sym, 'file', 'p_com', 'vars', {q_sym});
 pd_com_func = matlabFunction(vpc_sym, 'file', 'pd_com', 'vars', {q_sym, qd_sym});
 
@@ -72,44 +87,5 @@ H_func = matlabFunction(H_sym, 'file', 'H', 'vars', {q_sym});
 C_func = matlabFunction(C_sym, 'file', 'C', 'vars', {q_sym, qd_sym});
 Lambda_func = matlabFunction(Lambda_sym, 'file', 'Lambda', 'vars', {q_sym});
 
-% Simulate the systems
-disp("===> Simulating System")
-T = 10;     % simulation time
-dt = 1e-2;  % timestep
-
-% initial state
-x = 0.5*ones(2*model.NB,1);   % start away from signularities
-state_trajectory = [];
-com_trajectory = [];
-
-for t = 1:dt:T
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % feedback controller
-    tic
-    q = x(1:model.NB);    % unpack joint state
-    qd = x(model.NB+1:end);  
-
-    x_lin = [p_com(q);J(q)*qd];
-    x_des = [0;1.0;0;0];
-
-    K = [1 0 1.7 0; 0 1 0 1.7];
-    v = -K*(x_lin-x_des);       % virtual control for linearized system
-
-    %u = H(q)*inv(J(q))*(v-Jdot(q,qd)*qd)+C(q,qd);  % feedback linearization
-    u = J(q)'*(Lambda(q)*v - Lambda(q)*Jdot(q,qd)*qd + Lambda(q)*J(q)*inv(H(q))*C(q,qd));
-    toc
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    xdot = BalancerDynamics(x,u);
-    x = x + xdot*dt;
-
-    state_trajectory(:,end+1) = x;
-    com_trajectory(:,end+1) = p_com(q);
-end
-
-% Plot an animation of the motion
-q_trajectory = state_trajectory(1:model.NB,:);
-showmotion(model, 1:dt:T, q_trajectory);
-
-plot(1:dt:T,com_trajectory)
-
+% Save the model
+save('balancer_model','model')
