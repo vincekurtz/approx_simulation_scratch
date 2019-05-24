@@ -23,6 +23,12 @@ try
     % Controller Setup
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+    % Indicate the approach to contact constraints that we'll take.
+    %   0 : don't consider contact constraints at all
+    %   1 : constrain the LIP model during MPC planning according to the ZMP criterion
+    %   2 : constrain the virtual control u_com according to the CWC criterion
+    contact_constraint_method = 1;
+
     % Derive LIP and linearized CoM dynamics along with an interface
     setup_interface;
 
@@ -62,7 +68,7 @@ try
     
     % Number of timesteps and time discritization
     T = 5;  % simulation time in seconds
-    dt = 3e-2;  % note that we get joint angles from ROS at ~50Hz
+    dt = 1e-1;  % note that we get joint angles from ROS at ~50Hz
   
     pause(2) % Wait 2s to initialize ROS
     
@@ -70,12 +76,22 @@ try
     % Simulation
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+    % Warmup the solvers. I'm not sure why, but making a few compuations of tau ahead of time
+    % seems to speed up matlab's computation significantly. A more permanent solution would be to 
+    % convert to C code. 
+    u_com = rand(2,1);q = rand(4,1);qd = rand(4,1);
+    tau = J(q)'*(Lambda(q)*u_com - Lambda(q)*Jdot(q,qd)*qd + Lambda(q)*J(q)*inv(H(q))*C(q,qd));
+    u_com = rand(2,1);q = rand(4,1);qd = rand(4,1);
+    tau = J(q)'*(Lambda(q)*u_com - Lambda(q)*Jdot(q,qd)*qd + Lambda(q)*J(q)*inv(H(q))*C(q,qd));
+    u_com = rand(2,1);q = rand(4,1);qd = rand(4,1);
+    tau = J(q)'*(Lambda(q)*u_com - Lambda(q)*Jdot(q,qd)*qd + Lambda(q)*J(q)*inv(H(q))*C(q,qd));
+
+
     % unpause the physics engine
     pause_resp = call(pause_client, pause_msg);
 
     % Wait to get joint angle readings
     while ~ready
-        disp(ready)
         pause(0.001)
     end
 
@@ -103,12 +119,10 @@ try
     torques = [];
 
     for timestep=1:dt:T
+        disp("")
         tic
 
-        tic
-        % Compute the LIP control that will let us balance.
-        u_lip = -K_lip*x_lip(1:2);
-   
+
         % Compute double pendulum state (joint angle definitions differ from Gazebo)
         q = [pi/2-t1; -t2; -t3; -t4];
         qd = [-t1_dot; -t2_dot; -t3_dot; -t4_dot];
@@ -119,20 +133,47 @@ try
         com_vel = pd_com(q,qd);
         x_com = [com_pos(1);com_vel(1);com_pos(2);com_vel(2)];
 
-        % Compute virtual control for the feedback linearized system
-        u_com_des = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
+        if contact_constraint_method == 0
+            % Don't consider contact constraints
+            
+            % Compute the LIP control that will let us balance.
+            u_lip = -K_lip*x_lip(1:2);
+   
+            % Compute virtual control for the feedback linearized system
+            u_com = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
 
-        % Constrain virtual control to obey contact constraints
-        params.M = M;
-        params.x_com = x_com;
-        params.x_lip = x_lip;
-        params.u_lip = u_lip;
-        params.A_com = A1;
-        params.B_com = B1;
-        params.A_lip = A2;
-        params.B_lip = B2;
-        params.dt = dt;
-        u_com = constrain_ucom(u_com_des, q, qd, params);
+        elseif contact_constraint_method == 1
+            % Constrain the LIP model in MPC according to the ZMP criterion
+
+            params.A_lip = A2;
+            params.B_lip = B2;
+            params.N = 5;
+            params.u_max = 0.5-V;
+            params.dt = dt;
+            
+            u_lip = LIPController(x_lip, params);
+            u_com = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
+
+            disp("compute lip control")
+            toc
+
+        elseif contact_constraint_method == 2
+            % Constraint the virtual control u_com according to the CWC criterion
+            
+            u_lip = -K_lip*x_lip(1:2);
+            u_com_des = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
+
+            params.M = M;
+            params.x_com = x_com;
+            params.x_lip = x_lip;
+            params.u_lip = u_lip;
+            params.A_com = A1;
+            params.B_com = B1;
+            params.A_lip = A2;
+            params.B_lip = B2;
+            params.dt = dt;
+            u_com = constrain_ucom(u_com_des, q, qd, params);
+        end
 
         % Compute torques to apply to the full system
         tau = J(q)'*(Lambda(q)*u_com - Lambda(q)*Jdot(q,qd)*qd + Lambda(q)*J(q)*inv(H(q))*C(q,qd));
@@ -146,6 +187,7 @@ try
         send(joint2_pub, joint2_msg)
         send(joint3_pub, joint3_msg)
         send(joint4_pub, joint4_msg)
+
         
         % Apply the LIP control to the LIP model
         dx_lip = A2*x_lip + B2*u_lip;
