@@ -73,6 +73,22 @@ Jdot_sym = jacobian(vpc_sym, q_sym);
 % Task-space inertia matrix
 Lambda_sym = inv(J_sym*inv(H_sym)*J_sym');
 
+% Spatial force transforms from contacts to CoM
+foot_width = 0.5;
+c1 = [foot_width/2 0 0];
+c2 = [-foot_width/2 0 0];
+
+o_X_c1 = xlt(c1);   % spatial transforms from contact to base frame
+o_X_c2 = xlt(c2);
+
+com_X_o = xlt([xc_sym yc_sym 0]); % transform from base frame to CoM
+
+com_X_c1 = com_X_o*o_X_c1;  % transform from contacts to CoM
+com_X_c2 = com_X_o*o_X_c2;
+
+com_Xf_c1 = inv(com_X_c1)'; % force transforms
+com_Xf_c2 = inv(com_X_c2)';
+
 % Generate matlab functions for relevant quantities
 disp("===> Saving Functions and Model File")
 f_func = matlabFunction(f_sym, 'file', 'BalancerDynamics', 'vars', {x_sym, u_sym});
@@ -86,6 +102,9 @@ Jdot_func = matlabFunction(Jdot_sym, 'file', 'Jdot', 'vars', {q_sym, qd_sym});
 H_func = matlabFunction(H_sym, 'file', 'H', 'vars', {q_sym});
 C_func = matlabFunction(C_sym, 'file', 'C', 'vars', {q_sym, qd_sym});
 Lambda_func = matlabFunction(Lambda_sym, 'file', 'Lambda', 'vars', {q_sym});
+
+Xf_1_func = matlabFunction(com_Xf_c1, 'file', 'Xf_1', 'vars', {q_sym});
+Xf_2_func = matlabFunction(com_Xf_c2, 'file', 'Xf_2', 'vars', {q_sym});
 
 % Save the model
 save('balancer_model','model')

@@ -17,7 +17,7 @@ B_lip = [0; -omega^2];
 
 % Stabilizing controller for LIP model
 Q_lip = diag([1,1]);
-R_lip = 10.0;
+R_lip = 1.0;
 K_lip = lqr(A_lip, B_lip, Q_lip, R_lip);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

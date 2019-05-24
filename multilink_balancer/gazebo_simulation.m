@@ -85,25 +85,27 @@ try
     qd0 = [-t1_dot; -t2_dot; -t3_dot; -t4_dot];
     x = [q0;qd0];
 
-    % Set the initial state of the LIP model
+    % Set the initial state of the LIP model and the linearized CoM system
     com_pos = p_com(q0);
     com_vel = pd_com(q0,qd0);
     x_lip = [com_pos(1);com_vel(1);h;0];
+    x_com = [com_pos(1);com_vel(1);com_pos(2);com_vel(2)];
 
     % Initial value of the simulation function: we can treat as an error bound
     % between the LIP model state and the true model state
-    %V = SimulationFcn(x_lip, x)
+    V = (x_com-P*x_lip)'*M*(x_com-P*x_lip);
 
     % Record trajectories
     joint_trajectory = [];
     com_trajectory = [];
     lip_trajectory = [];
     lip_control = [];
+    torques = [];
 
     for timestep=1:dt:T
         tic
 
-        %tic
+        tic
         % Compute the LIP control that will let us balance.
         u_lip = -K_lip*x_lip(1:2);
    
@@ -118,7 +120,19 @@ try
         x_com = [com_pos(1);com_vel(1);com_pos(2);com_vel(2)];
 
         % Compute virtual control for the feedback linearized system
-        u_com = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
+        u_com_des = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
+
+        % Constrain virtual control to obey contact constraints
+        params.M = M;
+        params.x_com = x_com;
+        params.x_lip = x_lip;
+        params.u_lip = u_lip;
+        params.A_com = A1;
+        params.B_com = B1;
+        params.A_lip = A2;
+        params.B_lip = B2;
+        params.dt = dt;
+        u_com = constrain_ucom(u_com_des, q, qd, params);
 
         % Compute torques to apply to the full system
         tau = J(q)'*(Lambda(q)*u_com - Lambda(q)*Jdot(q,qd)*qd + Lambda(q)*J(q)*inv(H(q))*C(q,qd));
@@ -142,7 +156,8 @@ try
         com_trajectory(end+1,:) = x_com;
         lip_trajectory(end+1,:) = x_lip;
         lip_control(end+1,:) = u_lip;
-        %toc
+        torques(end+1,:) = tau;
+        toc
         
         pause(dt-toc)
     end
@@ -160,11 +175,23 @@ end
 % Playback and analysis of the results
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-load('balancer_model')  % import spatial_v2 model
-q_trajectory = joint_trajectory(:,1:model.NB)';
-showmotion(model, 1:dt:T, q_trajectory);
+% Plot the error vs the simulation function
+err_sim = [];
+V_sim = [];
+for i=1:length(com_trajectory)
+    x_com = com_trajectory(i,:)';
+    x_lip = lip_trajectory(i,:)';
 
-plot(com_trajectory)
+    err_sim(end+1) = (x_com-x_lip)'*(x_com-x_lip);
+    V_sim(end+1) = (x_com-P*x_lip)'*M*(x_com-P*x_lip);
+end
+hold on
+plot(1:dt:T,err_sim)
+plot(1:dt:T,V_sim)
+
+figure;
+plot(torques)
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
