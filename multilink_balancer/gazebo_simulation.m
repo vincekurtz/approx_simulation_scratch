@@ -27,7 +27,7 @@ try
     %   0 : don't consider contact constraints at all
     %   1 : constrain the LIP model during MPC planning according to the ZMP criterion
     %   2 : constrain the virtual control u_com according to the CWC criterion
-    contact_constraint_method = 1;
+    contact_constraint_method = 0;
 
     % Derive LIP and linearized CoM dynamics along with an interface
     setup_interface;
@@ -67,7 +67,7 @@ try
     joint4_msg = rosmessage(joint4_pub);
     
     % Number of timesteps and time discritization
-    T = 5;  % simulation time in seconds
+    T = 10;  % simulation time in seconds
     dt = 1e-1;  % note that we get joint angles from ROS at ~50Hz
   
     pause(2) % Wait 2s to initialize ROS
@@ -154,9 +154,6 @@ try
             u_lip = LIPController(x_lip, params);
             u_com = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
 
-            disp("compute lip control")
-            toc
-
         elseif contact_constraint_method == 2
             % Constraint the virtual control u_com according to the CWC criterion
             
@@ -231,8 +228,10 @@ hold on
 plot(1:dt:T,err_sim)
 plot(1:dt:T,V_sim)
 
-figure;
-plot(torques)
+legend("Error","Simulation Function")
+xlabel("time")
+ylabel("value")
+
 
 
 
