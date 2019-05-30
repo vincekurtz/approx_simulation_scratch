@@ -60,13 +60,12 @@ for t = 1:dt:T
     Jbar = inv(H(q))*J(q)'*Lambda(q);
     N = (eye(4) - J(q)'*Jbar')';
 
-    % Apply secondary control: we'll regulate one of the joints
-    kp = 100;
-    kd = 10;
-    q_des = pi/2-0.1;
-    qd_des = 0;
-    tau = -kp*(q(1)-q_des) - kd*(qd(1)-qd_des);
-    u0 = [tau;0;0;0];  % secondary priority torque: we'll regulate one of the joints
+    % Apply secondary control
+    kp = diag([0;0;0;1]);
+    kd = diag([1;1;1;0]);
+    q_des = [pi/2-0.1;0;0;0.5*sin(t);];
+    qd_des = [0;0;0;0];
+    u0 = -kp*(q-q_des) - kd*(qd-qd_des);  % secondary priority torques
     u = u + N'*u0;
 
     % Simulate the full model forward
