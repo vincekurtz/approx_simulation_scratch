@@ -56,6 +56,19 @@ for t = 1:dt:T
     % Feedback linearization to generate torques as actual control
     u = J(q)'*(Lambda(q)*u_com - Lambda(q)*Jdot(q,qd)*qd + Lambda(q)*J(q)*inv(H(q))*C(q,qd));
 
+    % Compute null-space projector
+    Jbar = inv(H(q))*J(q)'*Lambda(q);
+    N = (eye(4) - J(q)'*Jbar')';
+
+    % Apply secondary control: we'll regulate one of the joints
+    kp = 100;
+    kd = 10;
+    q_des = pi/2-0.1;
+    qd_des = 0;
+    tau = -kp*(q(1)-q_des) - kd*(qd(1)-qd_des);
+    u0 = [tau;0;0;0];  % secondary priority torque: we'll regulate one of the joints
+    u = u + N'*u0;
+
     % Simulate the full model forward
     xdot = BalancerDynamics(x,u);
     x = x + xdot*dt;
@@ -81,5 +94,5 @@ plot(1:dt:T,com_trajectory)
 
 % Show an animation of the LIP
 addpath("../balancer")
-figure;
-animate_lip(1:dt:T, lip_trajectory', lip_control',h)
+%figure;
+%animate_lip(1:dt:T, lip_trajectory', lip_control',h)
