@@ -115,7 +115,7 @@ for t=2:length(state_trajectory)
 
     true_hd_trajectory(:,end+1) = (true_h_trajectory(:,t) - true_h_trajectory(:,t-1))/dt;
     mg = [0;0;0;0;4*g;0];
-    our_hd_trajectory(:,end+1) = A_com(q)*qdd + Ad_com_qd(q,qd)-mg;  % note: we need to include gravity here somehow
+    our_hd_trajectory(:,end+1) = A_com(q)*qdd + Ad_com_qd(q,qd);
 end
 figure;
 subplot(3,1,1)

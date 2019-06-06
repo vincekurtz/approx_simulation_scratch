@@ -99,7 +99,8 @@ Psi = [zeros(3) eye(3); eye(3) zeros(3)];
 U = [eye(6) zeros(6,3)];
 A_com_sym = com_Xf_o*Psi'*U*HH_sym;
 A_com_sym = A_com_sym*[zeros(5,model.NB);eye(model.NB)];  % Assume floating base joints are fixed at zero
-Ad_com_qd_sym = com_Xf_o*Psi'*U*CC_sym;
+mg = [0;0;0;model.NB*model.gravity];
+Ad_com_qd_sym = com_Xf_o*Psi'*U*CC_sym+mg;
 
 % Generate matlab functions for relevant quantities
 disp("===> Saving Functions and Model File")
