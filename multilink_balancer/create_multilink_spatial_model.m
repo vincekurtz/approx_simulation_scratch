@@ -82,12 +82,24 @@ o_X_c1 = xlt(c1);   % spatial transforms from contact to base frame
 o_X_c2 = xlt(c2);
 
 com_X_o = xlt([xc_sym yc_sym 0]); % transform from base frame to CoM
+com_Xf_o = inv(com_X_o)';         % force transform from base frame to CoM
 
 com_X_c1 = com_X_o*o_X_c1;  % transform from contacts to CoM
 com_X_c2 = com_X_o*o_X_c2;
 
 com_Xf_c1 = inv(com_X_c1)'; % force transforms
 com_Xf_c2 = inv(com_X_c2)';
+
+% Spatial Momentum
+h_o = ret.htot;   % spatial momentum in the base frame (for double checking)
+
+fb_model = floatbase(model);   % Centroid dynamics following Wensing and Orin 2015
+[HH_sym, CC_sym] = HandC(fb_model, [zeros(5,1);q_sym], [zeros(5,1);qd_sym]);
+Psi = [zeros(3) eye(3); eye(3) zeros(3)];
+U = [eye(6) zeros(6,3)];
+A_com_sym = com_Xf_o*Psi'*U*HH_sym;
+A_com_sym = A_com_sym*[zeros(5,model.NB);eye(model.NB)];  % Assume floating base joints are fixed at zero
+Ad_com_qd_sym = com_Xf_o*Psi'*U*CC_sym;
 
 % Generate matlab functions for relevant quantities
 disp("===> Saving Functions and Model File")
@@ -103,8 +115,14 @@ H_func = matlabFunction(H_sym, 'file', 'H', 'vars', {q_sym});
 C_func = matlabFunction(C_sym, 'file', 'C', 'vars', {q_sym, qd_sym});
 Lambda_func = matlabFunction(Lambda_sym, 'file', 'Lambda', 'vars', {q_sym});
 
+h_func = matlabFunction(h_o, 'file', 'h_o', 'vars', {q_sym, qd_sym});
+A_com_func = matlabFunction(A_com_sym, 'file', 'A_com', 'vars', {q_sym});
+Ad_com_qd_func = matlabFunction(Ad_com_qd_sym, 'file', 'Ad_com_qd', 'vars', {q_sym, qd_sym});
+
 Xf_1_func = matlabFunction(com_Xf_c1, 'file', 'Xf_1', 'vars', {q_sym});
 Xf_2_func = matlabFunction(com_Xf_c2, 'file', 'Xf_2', 'vars', {q_sym});
+
+com_Xf_0_func = matlabFunction(com_Xf_o, 'file', 'Xf_0', 'vars', {q_sym});
 
 % Save the model
 save('balancer_model','model')
