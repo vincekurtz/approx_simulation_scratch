@@ -27,7 +27,7 @@ try
     %   0 : don't consider contact constraints at all
     %   1 : constrain the LIP model during MPC planning according to the ZMP criterion
     %   2 : constrain the virtual control u_com according to the CWC criterion
-    contact_constraint_method = 0;
+    contact_constraint_method = 2;
 
     % Load the spatial_v2 model of the balancer
     load('balancer_model');
@@ -70,7 +70,7 @@ try
     joint4_msg = rosmessage(joint4_pub);
     
     % Number of timesteps and time discritization
-    T = 10;  % simulation time in seconds
+    T = 5;  % simulation time in seconds
     dt = 1e-2;  % note that we get joint angles from ROS at ~50Hz
   
     pause(2) % Wait 2s to initialize ROS
@@ -146,20 +146,13 @@ try
             u_com = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
 
         elseif contact_constraint_method == 2
-            % Constraint the virtual control u_com according to the CWC criterion
+            % Constrain the virtual control u_com according to the CWC criterion
             
-            u_lip = -K_lip*x_lip(1:2);
+            u_lip = -K_lip*[x_lip(1);1/m*x_lip(4)];
             u_com_des = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
 
-            params.M = M;
-            params.x_com = x_com;
-            params.x_lip = x_lip;
-            params.u_lip = u_lip;
-            params.A_com = A1;
-            params.B_com = B1;
-            params.A_lip = A2;
-            params.B_lip = B2;
-            params.dt = dt;
+            params.mu = 0.2;
+            params.mg = -m*g;
             u_com = constrain_ucom(u_com_des, q, qd, params);
         end
 
@@ -171,9 +164,9 @@ try
         Abar = inv(H(q))*A_com(q)'*Lambda;
         N = (eye(4) - A_com(q)'*Abar')';   % null space projector
 
-        kp = diag([1;0;0;0]);    % we'll use PD control of joints to
+        kp = diag([0;0;1;1]);    % we'll use PD control of joints to
         kd = diag([1;1;1;1]);    % apply commands in the null space
-        q_des = [pi/2;0;0;0];
+        q_des = [pi/2;0;pi/2;0];
         qd_des = [0;0;0;0];
         tau0 = -kp*(q-q_des)-kd*(qd-qd_des);
         tau = tau + N'*tau0;
