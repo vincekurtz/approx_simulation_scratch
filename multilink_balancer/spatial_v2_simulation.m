@@ -28,10 +28,11 @@ q0 = [0.5;0.2;0.2;0.4];
 qd0 = [0.1;0;0;0];
 x = [q0;qd0];
 
-% Initial state of LIP model
+% Initial state of LIP model and linearized system
 com_pos = p_com(q0);
-com_vel = pd_com(q0,qd0);
-x_lip = [com_pos(1);h;0;m*com_vel(1);0];
+com_h = A_com(q0)*qd0;
+x_com = [com_pos;com_h];
+x_lip = [com_pos(1);h;0;com_h(2);0];  % y position fixed at h, angular momentum fixed at 0.
 
 % Quantities to save for plotting
 state_trajectory = [];
@@ -49,30 +50,26 @@ for t = 1:dt:T
     % Compute LIP control that will let us balance
     u_lip = -K_lip*[x_lip(1);1/m*x_lip(4)];
 
-    % Linearization based on centroid momentum
-    A = [zeros(3,2) eye(3) zeros(3,1)]*A_com(q);    % select only nonzero terms
-    Ad_qd = [zeros(3,2) eye(3) zeros(3,1)]*Ad_com_qd(q,qd);
-
     % Compute the state of the linearized system
     com_pos = p_com(q);
-    com_h = A*qd;
-    x_lin = [com_pos;com_h];
+    com_h = A_com(q)*qd;
+    x_com = [com_pos;com_h];
 
     % Compute a control to track the LIP trajectory
-    u_com = R*u_lip + Q*x_lip + K_joint*(x_lin-P*x_lip);
+    u_com = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
 
     % Feedback linearization to generate torques as actual control
-    Lambda = inv(A*inv(H(q))*A');
-    u = A'*(Lambda*u_com - Lambda*Ad_qd + Lambda*A*inv(H(q))*C(q,qd));
+    Lambda = inv(A_com(q)*inv(H(q))*A_com(q)');
+    u = A_com(q)'*(Lambda*u_com - Lambda*Ad_com_qd(q,qd) + Lambda*A_com(q)*inv(H(q))*C(q,qd));
 
     % Secondary control via null space projector
-    Abar = inv(H(q))*A'*Lambda;
-    N = (eye(4) - A'*Abar')';   % null space projector
+    Abar = inv(H(q))*A_com(q)'*Lambda;
+    N = (eye(4) - A_com(q)'*Abar')';   % null space projector
 
-    kp = diag([1;0;0;0]);    % we'll use PD control of joints to
+    kp = diag([0;0;0;1]);    % we'll use PD control of joints to
     kd = diag([1;1;1;1]);    % apply commands in the null space
-    q_des = [pi/2-0.1;0;0;0];
-    qd_des = [0;0;0;0];
+    q_des = [0;0;0;pi/2+0.1*sin(t)];
+    qd_des = [0;0;0;0.1*cos(t)];
     u0 = -kp*(q-q_des)-kd*(qd-qd_des);
     u = u + N'*u0;
 
@@ -85,11 +82,11 @@ for t = 1:dt:T
     x_lip = x_lip + xdot_lip*dt;
 
     state_trajectory(:,end+1) = x;
-    com_trajectory(:,end+1) = x_lin;
+    com_trajectory(:,end+1) = x_com;
     lip_trajectory(:,end+1) = x_lip;
     lip_control(:,end+1) = u_lip;
-    err_sim(:,end+1) = sqrt((x_lin-x_lip)'*(x_lin-x_lip));
-    V_sim(:,end+1) = sqrt((x_lin-P*x_lip)'*M*(x_lin-P*x_lip));
+    err_sim(:,end+1) = sqrt((x_com-x_lip)'*(x_com-x_lip));
+    V_sim(:,end+1) = sqrt((x_com-P*x_lip)'*M*(x_com-P*x_lip));
     
     toc
 end

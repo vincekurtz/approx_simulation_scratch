@@ -54,7 +54,7 @@ Q = [0       0 0 0 0;
      omega^2 0 0 0 0;
      0       0 0 0 0];
 R = [0;-omega^2;0];
-K_joint = -lqr(A1,B1,eye(5),eye(3));    % A control gain that stabilizes the concrete system
+K_joint = -lqr(A1,B1,diag([1 1 1 1 1]),0.01*eye(3));    % A control gain that stabilizes the concrete system
                                         % Could derive from a PD controller as well
 
 lambda = 0.1;

@@ -29,6 +29,9 @@ try
     %   2 : constrain the virtual control u_com according to the CWC criterion
     contact_constraint_method = 0;
 
+    % Load the spatial_v2 model of the balancer
+    load('balancer_model');
+
     % Derive LIP and linearized CoM dynamics along with an interface
     setup_interface;
 
@@ -68,24 +71,13 @@ try
     
     % Number of timesteps and time discritization
     T = 10;  % simulation time in seconds
-    dt = 1e-1;  % note that we get joint angles from ROS at ~50Hz
+    dt = 1e-2;  % note that we get joint angles from ROS at ~50Hz
   
     pause(2) % Wait 2s to initialize ROS
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Simulation
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    % Warmup the solvers. I'm not sure why, but making a few compuations of tau ahead of time
-    % seems to speed up matlab's computation significantly. A more permanent solution would be to 
-    % convert to C code. 
-    u_com = rand(2,1);q = rand(4,1);qd = rand(4,1);
-    tau = J(q)'*(Lambda(q)*u_com - Lambda(q)*Jdot(q,qd)*qd + Lambda(q)*J(q)*inv(H(q))*C(q,qd));
-    u_com = rand(2,1);q = rand(4,1);qd = rand(4,1);
-    tau = J(q)'*(Lambda(q)*u_com - Lambda(q)*Jdot(q,qd)*qd + Lambda(q)*J(q)*inv(H(q))*C(q,qd));
-    u_com = rand(2,1);q = rand(4,1);qd = rand(4,1);
-    tau = J(q)'*(Lambda(q)*u_com - Lambda(q)*Jdot(q,qd)*qd + Lambda(q)*J(q)*inv(H(q))*C(q,qd));
-
 
     % unpause the physics engine
     pause_resp = call(pause_client, pause_msg);
@@ -103,9 +95,9 @@ try
 
     % Set the initial state of the LIP model and the linearized CoM system
     com_pos = p_com(q0);
-    com_vel = pd_com(q0,qd0);
-    x_lip = [com_pos(1);com_vel(1);h;0];
-    x_com = [com_pos(1);com_vel(1);com_pos(2);com_vel(2)];
+    com_h = A_com(q0)*qd0;
+    x_com = [com_pos;com_h];
+    x_lip = [com_pos(1);h;0;com_h(2);0];  % y position fixed at h, angular momentum fixed at 0.
 
     % Initial value of the simulation function: we can treat as an error bound
     % between the LIP model state and the true model state
@@ -122,7 +114,6 @@ try
         disp("")
         tic
 
-
         % Compute double pendulum state (joint angle definitions differ from Gazebo)
         q = [pi/2-t1; -t2; -t3; -t4];
         qd = [-t1_dot; -t2_dot; -t3_dot; -t4_dot];
@@ -130,14 +121,14 @@ try
 
         % Compute the state of the linearized system (CoM x and y position and velocity)
         com_pos = p_com(q);
-        com_vel = pd_com(q,qd);
-        x_com = [com_pos(1);com_vel(1);com_pos(2);com_vel(2)];
+        com_h = A_com(q)*qd;
+        x_com = [com_pos;com_h];
 
         if contact_constraint_method == 0
             % Don't consider contact constraints
             
             % Compute the LIP control that will let us balance.
-            u_lip = -K_lip*x_lip(1:2);
+            u_lip = -K_lip*[x_lip(1);1/m*x_lip(4)];
    
             % Compute virtual control for the feedback linearized system
             u_com = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
@@ -173,7 +164,19 @@ try
         end
 
         % Compute torques to apply to the full system
-        tau = J(q)'*(Lambda(q)*u_com - Lambda(q)*Jdot(q,qd)*qd + Lambda(q)*J(q)*inv(H(q))*C(q,qd));
+        Lambda = inv(A_com(q)*inv(H(q))*A_com(q)');
+        tau = A_com(q)'*(Lambda*u_com - Lambda*Ad_com_qd(q,qd) + Lambda*A_com(q)*inv(H(q))*C(q,qd));
+    
+        % Secondary control objective via null space projector
+        Abar = inv(H(q))*A_com(q)'*Lambda;
+        N = (eye(4) - A_com(q)'*Abar')';   % null space projector
+
+        kp = diag([1;0;0;0]);    % we'll use PD control of joints to
+        kd = diag([1;1;1;1]);    % apply commands in the null space
+        q_des = [pi/2;0;0;0];
+        qd_des = [0;0;0;0];
+        tau0 = -kp*(q-q_des)-kd*(qd-qd_des);
+        tau = tau + N'*tau0;
 
         % Apply the torques to the full system  
         joint1_msg.Data = min(tau_max, max(tau_min, -tau(1)));   % torque limits + correct for angle definitions
@@ -221,8 +224,8 @@ for i=1:length(com_trajectory)
     x_com = com_trajectory(i,:)';
     x_lip = lip_trajectory(i,:)';
 
-    err_sim(end+1) = (x_com-x_lip)'*(x_com-x_lip);
-    V_sim(end+1) = (x_com-P*x_lip)'*M*(x_com-P*x_lip);
+    err_sim(end+1) = sqrt((x_com-x_lip)'*(x_com-x_lip));
+    V_sim(end+1) = sqrt((x_com-P*x_lip)'*M*(x_com-P*x_lip));
 end
 hold on
 plot(1:dt:T,err_sim)
@@ -232,7 +235,16 @@ legend("Error","Simulation Function")
 xlabel("time")
 ylabel("value")
 
+% Plot the CoM trajectory
+figure;
+plot(1:dt:T,com_trajectory)
+legend("x position", "y position", "angular momentum", "x velocity", "y velocity");
 
+% Animate the LIP trajectory
+addpath("../balancer")
+figure;
+lip_traj = [lip_trajectory(:,1);1/m*lip_trajectory(:,4)];
+animate_lip(1:dt:T, lip_traj, lip_control,h)
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
