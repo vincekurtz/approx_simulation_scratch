@@ -25,8 +25,8 @@ try
 
     % Indicate the approach to contact constraints that we'll take.
     %   0 : don't consider contact constraints at all
-    %   1 : constrain the LIP model during MPC planning according to the ZMP criterion
-    %   2 : constrain the virtual control u_com according to the CWC criterion
+    %   1 : constrain the LIP model during MPC planning
+    %   2 : constrain the virtual control u_com at runtime
     contact_constraint_method = 2;
 
     % Load the spatial_v2 model of the balancer
@@ -101,7 +101,7 @@ try
 
     % Initial value of the simulation function: we can treat as an error bound
     % between the LIP model state and the true model state
-    V = (x_com-P*x_lip)'*M*(x_com-P*x_lip);
+    V = sqrt((x_com-P*x_lip)'*M*(x_com-P*x_lip));
 
     % Record trajectories
     joint_trajectory = [];
@@ -134,13 +134,16 @@ try
             u_com = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
 
         elseif contact_constraint_method == 1
-            % Constrain the LIP model in MPC according to the ZMP criterion
+            % Constrain the LIP model in MPC according to the CWC criterion
 
             params.A_lip = A2;
             params.B_lip = B2;
             params.N = 5;
-            params.u_max = 0.5-V;
             params.dt = dt;
+            params.R = R;
+            params.Q = Q;
+            params.K = K_joint;
+            params.epsilon = V;
             
             u_lip = LIPController(x_lip, params);
             u_com = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
@@ -151,9 +154,10 @@ try
             u_lip = -K_lip*[x_lip(1);1/m*x_lip(4)];
             u_com_des = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
 
-            params.mu = 0.2;
+            params.friction_coef = 0.2;
+            params.foot_width = 0.5;
             params.mg = -m*g;
-            u_com = constrain_ucom(u_com_des, q, qd, params);
+            u_com = constrain_ucom(u_com_des, x_com, params);
         end
 
         % Compute torques to apply to the full system

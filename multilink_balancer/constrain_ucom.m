@@ -1,15 +1,19 @@
-function u_com = constrain_ucom(u_com_des, q, qd, params)
+function u_com = constrain_ucom(u_com_des, x_com, params)
     % Use the CWC criterion to constrain the input to the feedback-linearized
     % model such that contact constraints are enforced.
     
     import casadi.*
 
-    % Force transform from the CoM frame to the 0 frame
-    o_Xf_com = inv(Xf_0(q));
+    % Force transform from the CoM frame to the 0 frame in terms of the (x,y) position
+    % of the CoM frame in the 0 frame. (x_com(1:2) is the x and y position of the center of mass)
+    o_Xf_com = [eye(3)  [0         0        x_com(2) ;
+                         0         0        -x_com(1);
+                         -x_com(2) x_com(1) 0       ];
+                zeros(3)   eye(3)                     ]
 
     % Constraints on the contact wrench (note that we only consider motion in the x-y plane)
-    mu = params.mu;
-    l = 0.5;  % foot width
+    mu = params.friction_coef;
+    l = params.foot_width;  % foot width
     A = [0 0  0  0  -1 0;   % positive normal force
          0 0  0  1 -mu 0;   % Coulomb friction
          0 0  0 -1 -mu 0;
