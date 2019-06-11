@@ -74,6 +74,31 @@ try
     dt = 1e-2;  % note that we get joint angles from ROS at ~50Hz
   
     pause(2) % Wait 2s to initialize ROS
+
+    % TESTING
+    if contact_constraint_method == 1
+        % Generate a whole LIP trajectory that respects contact constraints
+
+        params.A_lip = A2;
+        params.B_lip = B2;
+        params.A_com = A1;
+        params.B_com = B1;
+        params.N = 50;
+        params.dt = dt;
+        params.R = R;
+        params.Q = Q;
+        params.K = K_joint;
+        params.friction_coef = 0.2;
+        params.foot_width = 0.5;
+        params.mg = -m*g;
+        params.m = m;
+
+        x_com_init = [0.2011 1.6808 0.1594  0.1326  -0.4532]';
+        x_lip_init = [0.2044 1.5000 0      -0.7089  0]';
+
+        u_lip_trajectory = GenerateLIPTrajectory(x_lip_init, x_com_init, params);
+
+    end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Simulation
@@ -110,7 +135,7 @@ try
     lip_control = [];
     torques = [];
 
-    for timestep=1:dt:T
+    for timestep=dt:dt:T
         disp("")
         tic
 
@@ -135,17 +160,8 @@ try
 
         elseif contact_constraint_method == 1
             % Constrain the LIP model in MPC according to the CWC criterion
-
-            params.A_lip = A2;
-            params.B_lip = B2;
-            params.N = 5;
-            params.dt = dt;
-            params.R = R;
-            params.Q = Q;
-            params.K = K_joint;
-            params.epsilon = V;
-            
-            u_lip = LIPController(x_lip, params);
+            index = int32(timestep/dt);
+            u_lip = u_lip_trajectory(index);
             u_com = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
 
         elseif contact_constraint_method == 2
@@ -154,10 +170,7 @@ try
             u_lip = -K_lip*[x_lip(1);1/m*x_lip(4)];
             u_com_des = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
 
-            params.friction_coef = 0.2;
-            params.foot_width = 0.5;
-            params.mg = -m*g;
-            u_com = constrain_ucom(u_com_des, x_com, params);
+            u_com = constrain_ucom(u_com_des, x_com);
         end
 
         % Compute torques to apply to the full system
@@ -225,8 +238,8 @@ for i=1:length(com_trajectory)
     V_sim(end+1) = sqrt((x_com-P*x_lip)'*M*(x_com-P*x_lip));
 end
 hold on
-plot(1:dt:T,err_sim)
-plot(1:dt:T,V_sim)
+plot(dt:dt:T,err_sim)
+plot(dt:dt:T,V_sim)
 
 legend("Error","Simulation Function")
 xlabel("time")
@@ -234,14 +247,14 @@ ylabel("value")
 
 % Plot the CoM trajectory
 figure;
-plot(1:dt:T,com_trajectory)
+plot(dt:dt:T,com_trajectory)
 legend("x position", "y position", "angular momentum", "x velocity", "y velocity");
 
 % Animate the LIP trajectory
 addpath("../balancer")
 figure;
 lip_traj = [lip_trajectory(:,1);1/m*lip_trajectory(:,4)];
-animate_lip(1:dt:T, lip_traj, lip_control,h)
+animate_lip(dt:dt:T, lip_traj, lip_control,h)
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -259,8 +272,7 @@ function joint_state_callback(~, data)
     t1 = data.Position(1);
     t2 = data.Position(2);
     t3 = data.Position(3);
-    t4 = data.Position(4);
-    t1_dot = data.Velocity(1);
+    t4 = data.Position(4); t1_dot = data.Velocity(1);
     t2_dot = data.Velocity(2);
     t3_dot = data.Velocity(3);
     t4_dot = data.Velocity(4);

@@ -104,6 +104,30 @@ mg = [0;0;0;model.NB*model.gravity];
 Ad_com_qd_sym = com_Xf_o*Psi'*U*CC_sym+mg;
 Ad_com_qd_sym = [zeros(3,2) eye(3) zeros(3,1)]*Ad_com_qd_sym;     % select only nonzero momentum terms
 
+% Contact Constraints 
+mu = 0.2;     % friction coefficient
+l = 0.5;      % foot width
+mg = -9.81*4;  % mass times gravity
+
+p_com = sym('p_com', [2,1], 'real');  % center of mass
+o_Xf_com_p = [eye(3)  [0         0        p_com(2) ;   % Force transform from the CoM frame to the 0 frame
+                       0         0        -p_com(1);   % in terms of position of CoM
+                       -p_com(2) p_com(1) 0       ];
+              zeros(3)   eye(3)                     ];
+
+% Constraints on the contact wrench (note that we only consider motion in the x-y plane)
+A = [0 0  0  0  -1 0;   % positive normal force
+     0 0  0  1 -mu 0;   % Coulomb friction
+     0 0  0 -1 -mu 0;
+     0 0  1  0  -l 0;   % Center of pressure constraint
+     0 0 -1  0  -l 0];
+
+% Constraints on u_com
+A_cwc_sym = A*o_Xf_com_p;
+A_cwc_sym = A_cwc_sym*[zeros(2,3);eye(3);zeros(1,3)]; % map u_com to [0;0;u_com;0] implicitly
+b_cwc_sym = A*o_Xf_com_p*[0;0;0;0;mg;0];
+
+
 % Generate matlab functions for relevant quantities
 disp("===> Saving Functions and Model File")
 f_func = matlabFunction(f_sym, 'file', 'BalancerDynamics', 'vars', {x_sym, u_sym});
@@ -126,6 +150,9 @@ Xf_1_func = matlabFunction(com_Xf_c1, 'file', 'Xf_1', 'vars', {q_sym});
 Xf_2_func = matlabFunction(com_Xf_c2, 'file', 'Xf_2', 'vars', {q_sym});
 
 com_Xf_0_func = matlabFunction(com_Xf_o, 'file', 'Xf_0', 'vars', {q_sym});
+
+A_cwc_func = matlabFunction(A_cwc_sym, 'file', 'A_cwc', 'vars', {p_com});
+b_cwc_func = matlabFunction(b_cwc_sym, 'file', 'b_cwc', 'vars', {p_com});
 
 % Save the model
 save('balancer_model','model')
