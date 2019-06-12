@@ -27,7 +27,7 @@ try
     %   0 : don't consider contact constraints at all
     %   1 : constrain the LIP model during MPC planning
     %   2 : constrain the virtual control u_com at runtime
-    contact_constraint_method = 2;
+    contact_constraint_method = 1;
 
     % Load the spatial_v2 model of the balancer
     load('balancer_model');
@@ -70,36 +70,11 @@ try
     joint4_msg = rosmessage(joint4_pub);
     
     % Number of timesteps and time discritization
-    T = 5;  % simulation time in seconds
-    dt = 1e-2;  % note that we get joint angles from ROS at ~50Hz
+    T = 10;  % simulation time in seconds
+    dt = 5e-2;  % note that we get joint angles from ROS at ~50Hz
   
     pause(2) % Wait 2s to initialize ROS
 
-    % TESTING
-    if contact_constraint_method == 1
-        % Generate a whole LIP trajectory that respects contact constraints
-
-        params.A_lip = A2;
-        params.B_lip = B2;
-        params.A_com = A1;
-        params.B_com = B1;
-        params.N = 50;
-        params.dt = dt;
-        params.R = R;
-        params.Q = Q;
-        params.K = K_joint;
-        params.friction_coef = 0.2;
-        params.foot_width = 0.5;
-        params.mg = -m*g;
-        params.m = m;
-
-        x_com_init = [0.2011 1.6808 0.1594  0.1326  -0.4532]';
-        x_lip_init = [0.2044 1.5000 0      -0.7089  0]';
-
-        u_lip_trajectory = GenerateLIPTrajectory(x_lip_init, x_com_init, params);
-
-    end
-    
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Simulation
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -110,6 +85,45 @@ try
     % Wait to get joint angle readings
     while ~ready
         pause(0.001)
+    end
+
+    for timestep=1:dt:T
+        % Start balancing the balancer at some initial conditions
+        tic
+        % Get joint states (joint angle definitions differ from Gazebo)
+        q = [pi/2-t1; -t2; -t3; -t4];
+        qd = [-t1_dot; -t2_dot; -t3_dot; -t4_dot];
+        x_com = [p_com(q);A_com(q)*qd];
+
+        % Move to desired initial condition
+        x_com_des = [0.5 1.0 0 0 0]';
+        u_com = -K_joint*(x_com_des-x_com);
+        u_com = constrain_ucom(u_com, x_com);
+
+        % Compute and apply torques
+        Lambda = inv(A_com(q)*inv(H(q))*A_com(q)');
+        tau = A_com(q)'*(Lambda*u_com - Lambda*Ad_com_qd(q,qd) + Lambda*A_com(q)*inv(H(q))*C(q,qd));
+        
+        % Secondary control objective via null space projector
+        Abar = inv(H(q))*A_com(q)'*Lambda;
+        N = (eye(4) - A_com(q)'*Abar')';   % null space projector
+        kp = diag([0;0;1;1]);    % we'll use PD control of joints to
+        kd = diag([1;1;1;1]);    % apply commands in the null space
+        q_des = [pi/2;0;pi/2;0];
+        qd_des = [0;0;0;0];
+        tau0 = -kp*(q-q_des)-kd*(qd-qd_des);
+        tau = tau + N'*tau0;
+
+        joint1_msg.Data = min(tau_max, max(tau_min, -tau(1)));   % torque limits + correct for angle definitions
+        joint2_msg.Data = min(tau_max, max(tau_min, -tau(2)));
+        joint3_msg.Data = min(tau_max, max(tau_min, -tau(3)));
+        joint4_msg.Data = min(tau_max, max(tau_min, -tau(4)));
+        send(joint1_pub, joint1_msg)
+        send(joint2_pub, joint2_msg)
+        send(joint3_pub, joint3_msg)
+        send(joint4_pub, joint4_msg)
+
+        pause(dt-toc)
     end
 
     % Get the initial state of the robot: note that there is a mismatch between the
@@ -160,9 +174,23 @@ try
 
         elseif contact_constraint_method == 1
             % Constrain the LIP model in MPC according to the CWC criterion
-            index = int32(timestep/dt);
-            u_lip = u_lip_trajectory(index);
+
+            params.A_lip = A2;
+            params.B_lip = B2;
+            params.A_com = A1;
+            params.B_com = B1;
+            params.N = 2;
+            params.dt = dt;
+            params.R = R;
+            params.Q = Q;
+            params.K = K_joint;
+            params.m = m;
+
+            u_lip_trajectory = GenerateLIPTrajectory(x_lip, x_com, params);
+
+            u_lip = u_lip_trajectory(1);
             u_com = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
+
 
         elseif contact_constraint_method == 2
             % Constrain the virtual control u_com according to the CWC criterion
