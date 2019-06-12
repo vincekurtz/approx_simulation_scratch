@@ -23,11 +23,10 @@ try
     % Controller Setup
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    % Indicate the approach to contact constraints that we'll take.
-    %   0 : don't consider contact constraints at all
-    %   1 : constrain the LIP model during MPC planning
-    %   2 : constrain the virtual control u_com at runtime
-    contact_constraint_method = 1;
+    % Indicate the approach to tracking the LIP model we take
+    %   'QP' : Traditional approach using a Quadratic Program
+    %   'AS' : Our approach using Approximate Simulation
+    tracking_method = 'QP';
 
     % Load the spatial_v2 model of the balancer
     load('balancer_model');
@@ -70,7 +69,7 @@ try
     joint4_msg = rosmessage(joint4_pub);
     
     % Number of timesteps and time discritization
-    T = 10;  % simulation time in seconds
+    T = 5;  % simulation time in seconds
     dt = 5e-2;  % note that we get joint angles from ROS at ~50Hz
   
     pause(2) % Wait 2s to initialize ROS
@@ -138,10 +137,6 @@ try
     x_com = [com_pos;com_h];
     x_lip = [com_pos(1);h;0;com_h(2);0];  % y position fixed at h, angular momentum fixed at 0.
 
-    % Initial value of the simulation function: we can treat as an error bound
-    % between the LIP model state and the true model state
-    V = sqrt((x_com-P*x_lip)'*M*(x_com-P*x_lip));
-
     % Record trajectories
     joint_trajectory = [];
     com_trajectory = [];
@@ -163,18 +158,10 @@ try
         com_h = A_com(q)*qd;
         x_com = [com_pos;com_h];
 
-        if contact_constraint_method == 0
-            % Don't consider contact constraints
-            
-            % Compute the LIP control that will let us balance.
-            u_lip = -K_lip*[x_lip(1);1/m*x_lip(4)];
-   
-            % Compute virtual control for the feedback linearized system
-            u_com = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
+        if tracking_method == 'AS'
+            % Use our approach, which certifies approximate simulation
 
-        elseif contact_constraint_method == 1
             % Constrain the LIP model in MPC according to the CWC criterion
-
             params.A_lip = A2;
             params.B_lip = B2;
             params.A_com = A1;
@@ -185,36 +172,47 @@ try
             params.Q = Q;
             params.K = K_joint;
             params.m = m;
-
             u_lip_trajectory = GenerateLIPTrajectory(x_lip, x_com, params);
-
             u_lip = u_lip_trajectory(1);
+
+            % Apply the LIP control to the LIP model
+            dx_lip = A2*x_lip + B2*u_lip;
+            x_lip = x_lip + dx_lip*dt;
+
+            % Compute the associated virtual control
             u_com = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
 
+            % Compute torques to apply to the full system
+            Lambda = inv(A_com(q)*inv(H(q))*A_com(q)');
+            tau = A_com(q)'*(Lambda*u_com - Lambda*Ad_com_qd(q,qd) + Lambda*A_com(q)*inv(H(q))*C(q,qd));
+        
+            % Secondary control objective via null space projector
+            Abar = inv(H(q))*A_com(q)'*Lambda;
+            N = (eye(4) - A_com(q)'*Abar')';   % null space projector
 
-        elseif contact_constraint_method == 2
-            % Constrain the virtual control u_com according to the CWC criterion
-            
+            kp = diag([0;0;1;1]);    % we'll use PD control of joints to
+            kd = diag([1;1;1;1]);    % apply commands in the null space
+            q_des = [pi/2;0;pi/4;-pi/4];
+            qd_des = [0;0;0;0];
+            tau0 = -kp*(q-q_des)-kd*(qd-qd_des);
+            tau = tau + N'*tau0;
+
+        elseif tracking_method == 'QP'
+            % Use a traditional Quadratic Program to generate torques that track
+            % the LIP model
+
+            % Use LQR to find a trajectory for the LIP model
             u_lip = -K_lip*[x_lip(1);1/m*x_lip(4)];
-            u_com_des = R*u_lip + Q*x_lip + K_joint*(x_com-P*x_lip);
 
-            u_com = constrain_ucom(u_com_des, x_com);
+            % Apply the LIP control to the LIP model
+            dx_lip = A2*x_lip + B2*u_lip;
+            x_lip = x_lip + dx_lip*dt;
+
+            % Track this trajectory with a QP that enforces contact constraints
+            params.omega = omega;
+            tau = QPTracker(u_lip, x_lip, q, qd, params);
+            
         end
-
-        % Compute torques to apply to the full system
-        Lambda = inv(A_com(q)*inv(H(q))*A_com(q)');
-        tau = A_com(q)'*(Lambda*u_com - Lambda*Ad_com_qd(q,qd) + Lambda*A_com(q)*inv(H(q))*C(q,qd));
-    
-        % Secondary control objective via null space projector
-        Abar = inv(H(q))*A_com(q)'*Lambda;
-        N = (eye(4) - A_com(q)'*Abar')';   % null space projector
-
-        kp = diag([0;0;1;1]);    % we'll use PD control of joints to
-        kd = diag([1;1;1;1]);    % apply commands in the null space
-        q_des = [pi/2;0;pi/2;0];
-        qd_des = [0;0;0;0];
-        tau0 = -kp*(q-q_des)-kd*(qd-qd_des);
-        tau = tau + N'*tau0;
 
         % Apply the torques to the full system  
         joint1_msg.Data = min(tau_max, max(tau_min, -tau(1)));   % torque limits + correct for angle definitions
@@ -225,11 +223,6 @@ try
         send(joint2_pub, joint2_msg)
         send(joint3_pub, joint3_msg)
         send(joint4_pub, joint4_msg)
-
-        
-        % Apply the LIP control to the LIP model
-        dx_lip = A2*x_lip + B2*u_lip;
-        x_lip = x_lip + dx_lip*dt;
 
         % Record the resulting trajectories
         joint_trajectory(end+1,:) = x;
