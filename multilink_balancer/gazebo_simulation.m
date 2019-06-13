@@ -26,7 +26,7 @@ try
     % Indicate the approach to tracking the LIP model we take
     %   'QP' : Traditional approach using a Quadratic Program
     %   'AS' : Our approach using Approximate Simulation
-    tracking_method = 'QP';
+    tracking_method = 'AS';
 
     % Load the spatial_v2 model of the balancer
     load('balancer_model');
@@ -95,7 +95,7 @@ try
         x_com = [p_com(q);A_com(q)*qd];
 
         % Move to desired initial condition
-        x_com_des = [0.5 1.0 0 0 0]';
+        x_com_des = [0.2 1.5 0 0 0]';
         u_com = -K_joint*(x_com_des-x_com);
         u_com = constrain_ucom(u_com, x_com);
 
