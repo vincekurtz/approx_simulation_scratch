@@ -47,37 +47,63 @@ function u_lip = GenerateLIPTrajectory(x_lip_init, x_com_init, params)
          0 0  0 -1 -mu 0;
          0 0  1  0  -l 0;   % Center of pressure constraint
          0 0 -1  0  -l 0];
+   
+    % Interface Constraint
+    A_interface_eq = [kron(eye(params.N-1), params.R)           ...
+                      kron(eye(params.N-1), params.Q-params.K)  ...
+                      kron(eye(params.N-1), -eye(3))            ...
+                      kron(eye(params.N-1), params.K)];
+    opti.subject_to( A_interface_eq*[u_lip(:); x_lip(1:5*(params.N-1))'; u_com(:); x_com(1:5*(params.N-1))'] == 0 );
 
-    for t=1:params.N-1
-        % Interface constraint
-        opti.subject_to( u_com(:,t) == params.R*u_lip(:,t) + params.Q*x_lip(:,t) + params.K*(x_com(:,t)-x_lip(:,t)) );
+    % Acceleration bound (for linearizing contact constraints)
+    bnd = 3.0;
+    opti.subject_to( -bnd <= u_com(2,:) <= bnd );  % bound linear acceleration
+    opti.subject_to( -bnd <= u_com(3,:) <= bnd );
 
-        % Contact constraint
-      
-        % Attempt to use acceleration bound to linearize contact constraints
-        bnd = 3.0;
-        opti.subject_to( -bnd <= u_com(2,t) <= bnd );  % bound linear acceleration
-        opti.subject_to( -bnd <= u_com(3,t) <= bnd );
+    % Contact constraints
+    Au = A*[zeros(2,3);eye(3);zeros(1,3)];
+    Ax_1 = A*[S([0;mg;0])-S([bnd;bnd;0]);zeros(3)]*[eye(2) zeros(2,3); zeros(1,5)];
+    Ax_2 = A*[S([0;mg;0])-S([-bnd;bnd;0]);zeros(3)]*[eye(2) zeros(2,3); zeros(1,5)];
+    Ax_3 = A*[S([0;mg;0])-S([bnd;-bnd;0]);zeros(3)]*[eye(2) zeros(2,3); zeros(1,5)];
+    Ax_4 = A*[S([0;mg;0])-S([-bnd;-bnd;0]);zeros(3)]*[eye(2) zeros(2,3); zeros(1,5)];
+    b = A*[0;0;0;0;mg;0];
 
-        Acwc{t,1} = A*[0;0;u_com(:,t);0] + A*[S([0;mg;0])-S([bnd;bnd;0]);zeros(3)]*[x_com(1:2,t);0];
-        Acwc{t,2} = A*[0;0;u_com(:,t);0] + A*[S([0;mg;0])-S([bnd;-bnd;0]);zeros(3)]*[x_com(1:2,t);0];
-        Acwc{t,3} = A*[0;0;u_com(:,t);0] + A*[S([0;mg;0])-S([-bnd;bnd;0]);zeros(3)]*[x_com(1:2,t);0];
-        Acwc{t,4} = A*[0;0;u_com(:,t);0] + A*[S([0;mg;0])-S([-bnd;-bnd;0]);zeros(3)]*[x_com(1:2,t);0];
+    A_contact_1 = [kron(eye(params.N-1),Au) kron(eye(params.N-1),Ax_1)];
+    A_contact_2 = [kron(eye(params.N-1),Au) kron(eye(params.N-1),Ax_2)];
+    A_contact_3 = [kron(eye(params.N-1),Au) kron(eye(params.N-1),Ax_3)];
+    A_contact_4 = [kron(eye(params.N-1),Au) kron(eye(params.N-1),Ax_4)];
+    b_contact = repmat(b,params.N-1,1);
 
-        opti.subject_to( Acwc{t,1} <= A*[0;0;0;0;mg;0] );
-        opti.subject_to( Acwc{t,2} <= A*[0;0;0;0;mg;0] );
-        opti.subject_to( Acwc{t,3} <= A*[0;0;0;0;mg;0] );
-        opti.subject_to( Acwc{t,4} <= A*[0;0;0;0;mg;0] );
+    opti.subject_to( A_contact_1*[u_com(:);x_com(1:5*(params.N-1))'] <= b_contact )
+    opti.subject_to( A_contact_2*[u_com(:);x_com(1:5*(params.N-1))'] <= b_contact )
+    opti.subject_to( A_contact_3*[u_com(:);x_com(1:5*(params.N-1))'] <= b_contact )
+    opti.subject_to( A_contact_4*[u_com(:);x_com(1:5*(params.N-1))'] <= b_contact )
 
-        %% Original contact constraint
-        %Acwc{t} = A*[0;0;u_com(:,t);0] + A*[S([0;mg;0])-S([u_com(2:3);0]);zeros(3)]*[x_com(1:2,t);0];
-        %opti.subject_to( Acwc{t} <= A*[0;0;0;0;mg;0] );
+    % Dynamic (forward Euler) constraints
+    A_lip_eq = [eye(5)-params.A_lip*params.dt -eye(5) zeros(5,5*(params.N-2))];
+    B_lip_eq = [params.B_lip*params.dt zeros(5,params.N-2)];
 
-        % Euler integration constraints
-        opti.subject_to(x_lip(:,t+1) == x_lip(:,t) + (params.A_lip*x_lip(:,t) + params.B_lip*u_lip(:,t))*params.dt);
-        opti.subject_to(x_com(:,t+1) == x_com(:,t) + (params.A_com*x_com(:,t) + params.B_com*u_com(:,t))*params.dt);
+    A_com_eq = [eye(5)-params.A_com*params.dt -eye(5) zeros(5,5*(params.N-2))];
+    B_com_eq = [params.B_com*params.dt zeros(5,3*(params.N-2))];
 
+    for t=2:params.N-1
+        A_lip_last_row = A_lip_eq((end-4):end,:);
+        A_lip_eq = [A_lip_last_row;
+                    circshift(A_lip_last_row,[0,5])];
+        B_lip_last_row = B_lip_eq((end-4):end,:);
+        B_lip_eq = [B_lip_last_row;
+                    circshift(B_lip_last_row,[0,1])];
+
+        A_com_last_row = A_com_eq((end-4):end,:);
+        A_com_eq = [A_com_last_row;
+                    circshift(A_com_last_row,[0,5])];
+        B_com_last_row = B_com_eq((end-4):end,:);
+        B_com_eq = [B_com_last_row;
+                    circshift(B_com_last_row,[0,3])];
     end
+
+    opti.subject_to( [A_lip_eq B_lip_eq]*[x_lip(:);u_lip(:)] == 0 )
+    opti.subject_to( [A_com_eq B_com_eq]*[x_com(:);u_com(:)] == 0 )
 
     % Run the optimization
     opti.minimize(J);
@@ -85,7 +111,7 @@ function u_lip = GenerateLIPTrajectory(x_lip_init, x_com_init, params)
     options.ipopt.print_level = 0;
     options.print_time = false;
     opti.solver('ipopt', options);
-    opti.set_initial(u_lip,1);
+    %opti.solver('sqpmethod');
     sol = opti.solve();
     u_lip = sol.value(u_lip);
 
