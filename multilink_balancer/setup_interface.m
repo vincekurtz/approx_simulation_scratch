@@ -5,6 +5,9 @@
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% Load the spatial_v2 model of the balancer
+load('balancer_model');
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % LIP model
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -16,7 +19,7 @@ A_lip = [0 1; omega^2 0];
 B_lip = [0; -omega^2];
 
 % Stabilizing controller for LIP model
-Q_lip = diag([1,1]);
+Q_lip = diag([100,10]);
 R_lip = 1.0;
 K_lip = lqr(A_lip, B_lip, Q_lip, R_lip);
 

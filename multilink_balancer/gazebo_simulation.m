@@ -28,9 +28,6 @@ try
     %   'AS' : Our approach using Approximate Simulation
     tracking_method = 'AS';
 
-    % Load the spatial_v2 model of the balancer
-    load('balancer_model');
-
     % Derive LIP and linearized CoM dynamics along with an interface
     setup_interface;
 
@@ -71,7 +68,20 @@ try
     % Number of timesteps and time discritization
     T = 5;  % simulation time in seconds
     dt = 5e-2;  % note that we get joint angles from ROS at ~50Hz
-  
+ 
+    % Compute MPC constraints for the LIP model
+    params.A_lip = A2;
+    params.B_lip = B2;
+    params.A_com = A1;
+    params.B_com = B1;
+    params.N = 10;     % MPC horizon
+    params.dt = dt;
+    params.R = R;
+    params.Q = Q;
+    params.K = K_joint;
+    params.m = m;
+    constraint_params = LIPConstraints(params);
+
     pause(2) % Wait 2s to initialize ROS
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -162,17 +172,7 @@ try
             % Use our approach, which certifies approximate simulation
 
             % Constrain the LIP model in MPC according to the CWC criterion
-            params.A_lip = A2;
-            params.B_lip = B2;
-            params.A_com = A1;
-            params.B_com = B1;
-            params.N = 2;
-            params.dt = dt;
-            params.R = R;
-            params.Q = Q;
-            params.K = K_joint;
-            params.m = m;
-            u_lip_trajectory = GenerateLIPTrajectory(x_lip, x_com, params);
+            u_lip_trajectory = GenerateLIPTrajectory(x_lip, x_com, constraint_params);
             u_lip = u_lip_trajectory(1);
 
             % Apply the LIP control to the LIP model
