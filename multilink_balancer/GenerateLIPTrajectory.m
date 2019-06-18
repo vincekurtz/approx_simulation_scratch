@@ -80,25 +80,26 @@ function u_lip = GenerateLIPTrajectory(x_lip_init, x_com_init, params)
     opti.subject_to( A_contact_4*[u_com(:);x_com(1:5*(params.N-1))'] <= b_contact )
 
     % Dynamic (forward Euler) constraints
-    A_lip_eq = [eye(5)-params.A_lip*params.dt -eye(5) zeros(5,5*(params.N-2))];
+    A_lip_eq = [eye(5)+params.A_lip*params.dt -eye(5) zeros(5,5*(params.N-2))];
     B_lip_eq = [params.B_lip*params.dt zeros(5,params.N-2)];
 
-    A_com_eq = [eye(5)-params.A_com*params.dt -eye(5) zeros(5,5*(params.N-2))];
+    A_com_eq = [eye(5)+params.A_com*params.dt -eye(5) zeros(5,5*(params.N-2))];
     B_com_eq = [params.B_com*params.dt zeros(5,3*(params.N-2))];
 
     for t=2:params.N-1
         A_lip_last_row = A_lip_eq((end-4):end,:);
-        A_lip_eq = [A_lip_last_row;
+        A_lip_eq = [A_lip_eq;
                     circshift(A_lip_last_row,[0,5])];
+
         B_lip_last_row = B_lip_eq((end-4):end,:);
-        B_lip_eq = [B_lip_last_row;
+        B_lip_eq = [B_lip_eq;
                     circshift(B_lip_last_row,[0,1])];
 
         A_com_last_row = A_com_eq((end-4):end,:);
-        A_com_eq = [A_com_last_row;
+        A_com_eq = [A_com_eq;
                     circshift(A_com_last_row,[0,5])];
         B_com_last_row = B_com_eq((end-4):end,:);
-        B_com_eq = [B_com_last_row;
+        B_com_eq = [B_com_eq;
                     circshift(B_com_last_row,[0,3])];
     end
 
@@ -111,7 +112,6 @@ function u_lip = GenerateLIPTrajectory(x_lip_init, x_com_init, params)
     options.ipopt.print_level = 0;
     options.print_time = false;
     opti.solver('ipopt', options);
-    %opti.solver('sqpmethod');
     sol = opti.solve();
     u_lip = sol.value(u_lip);
 
