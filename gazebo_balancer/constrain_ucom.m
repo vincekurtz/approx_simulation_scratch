@@ -42,6 +42,9 @@ function u_com = constrain_ucom(u_com_des, params)
     x_com_plus = params.x_com + (params.A_com*params.x_com + params.B_com*u_com)*params.dt;
     qp.f = (x_com_plus-x_lip_plus)'*params.M*(x_com_plus-x_lip_plus);
 
+    % Alternative objective function is to minimize the distance to the nominal control.
+    qp.f = (u_com_des - u_com)'*(u_com_des - u_com);
+
     % Constraints to ensure that we remain in contact
     qp.g = A*[f_c1;f_c2;u_com];
 

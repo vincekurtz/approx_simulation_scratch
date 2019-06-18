@@ -182,6 +182,8 @@ for t = 1:dt:T
     q = x(1:2);
     qd = x(3:4);
     tau = H(q)*inv(J(q))*(u_lin-Jdot(q,qd)*qd)+C(q,qd);
+
+    tau = min(tau_max, max(tau_min,tau));
    
     % Apply the controls to the full system
     dx = BalancerDynamics(x, tau);

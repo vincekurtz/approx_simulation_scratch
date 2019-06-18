@@ -3,8 +3,6 @@
 clear;
 clc;
 
-% Tools for animating the results
-
 % Launch the gazebo simulation (note that matlab overwrites the
 % LD_LIBRARY_PATH, so we need to set it manually first
 [status,cmdout] = system(["./start_gazebo_sim.sh"])
@@ -46,7 +44,7 @@ try
     joint2_msg = rosmessage(joint2_pub);
     
     % Number of timesteps and time discritization
-    T = 10;  % simulation time in seconds
+    T = 5;  % simulation time in seconds
     dt = 3e-2;  % note that we get joint angles from ROS at ~50Hz
     
     pause(2) % Wait 2s to initialize ROS

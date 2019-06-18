@@ -18,9 +18,6 @@ function tau = QPTracker(u_lip, x_lip, q, qd, params)
     Kd = 20*eye(2);
     a_com_des = [a_lip;0] - Kp*(pp_com - p_com_des) - Kd*(pd_com - pd_com_des);
 
-    % Temporary check: direct feedback linearization
-    %tau = J(q)'*(Lambda(q)*a_com_des - Lambda(q)*Jdot(q,qd)*qd + Lambda(q)*J(q)*inv(H(q))*C(q,qd));
-
     % Quadratic Program to enforce contact constraints
     opti = casadi.Opti();
     qdd = opti.variable(4,1);
@@ -29,7 +26,7 @@ function tau = QPTracker(u_lip, x_lip, q, qd, params)
     % Cost Function
     cost = J(q)*qdd + Jdot(q,qd)*qd - a_com_des;
     cost = cost'*cost;
-    cost = cost + qdd'*diag([0;0;0.3;0.3])*qdd;  % penalty to discourage spinning top links
+    cost = cost + qdd'*diag([0.1;0.1;0.5;0.5])*qdd;  % penalty to discourage spinning top links
     opti.minimize(cost);
 
     % Constraints
