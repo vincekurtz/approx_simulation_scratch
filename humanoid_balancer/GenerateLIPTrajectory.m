@@ -39,26 +39,20 @@ function u_lip = GenerateLIPTrajectory(x_lip_init, x_com_init, params)
 
     % Solve the QP
     try
-        % Try to use a faster active set solver first
+        % Try to use an active-set solver to solve the QP
         options.print_time = false;
         options.printLevel = 'none';
         options.sparse = true;
-        options.CPUtime = 0.000001;
+        options.CPUtime = 1e-5;
         Solver = qpsol('S','qpoases',qp,options);
         r = Solver('lbg',lbg,'ubg',ubg);
+        x_opt = full(r.x);
+        u_lip = x_opt(end-params.N+2:end)';
     catch e
-        % Fall back to an interior point solver if that fails
-        disp("Falling back to interior point solver")
-        disp(e.message)
-
-        options = struct;
-        options.print_time = false;
-        options.ipopt.print_level = 0;
-        Solver = nlpsol('S','ipopt',qp,options);
-        r = Solver('lbg',lbg,'ubg',ubg);
+        % If that fails, set the LIP control to be under the CoM
+        disp("Activating fallback")
+        u_lip = x_lip_init(1)*ones(1,params.N);
     end
-    x_opt = full(r.x);
-    u_lip = x_opt(end-params.N+2:end)';
 
 end
 

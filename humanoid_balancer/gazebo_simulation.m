@@ -78,7 +78,7 @@ try
     params.B_lip = B2;
     params.A_com = A1;
     params.B_com = B1;
-    params.N = 3;     % MPC horizon
+    params.N = 5;     % MPC horizon
     params.dt = dt;
     params.R = R;
     params.Q = Q;
@@ -143,7 +143,7 @@ try
     disp("Applying Push")
     push_msg.BodyName = 'multilink_balancer::link4';
     push_msg.ReferencePoint.Z = 1.0;
-    push_msg.Wrench.Force.X = -10;
+    push_msg.Wrench.Force.X = -150;
     push_msg.Duration.Nsec = 1e7;
     push_resp = call(push_client, push_msg);
     pause(0.01);
