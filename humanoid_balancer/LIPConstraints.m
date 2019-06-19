@@ -11,14 +11,10 @@ function cons = LIPConstraints(params)
     Q = diag([10;0;0;10;0]);
     R = 5.00;
 
-    % Terminal cost based on optimal cost-to-go of LQR
-    Qf = 10*Q;
-    %Qf = 10*[ 5.2859 0 0  0.7700 0;
-    %       0      0 0  0      0;
-    %       0      0 0  0      0;
-    %       0.7700 0 0  0.2843 0;
-    %       0      0 0  0      0];
+    % Terminal cost
+    Qf = 100*Q;
 
+    % Running and terminal costs together
     QQ = kron(eye(params.N-1),Q);  % matrix with Q on diagonal
 
     % Cost function is given by x_lip(:)'QQ*x_lip(:) + u_lip(:)'*RR*u_lip(:)

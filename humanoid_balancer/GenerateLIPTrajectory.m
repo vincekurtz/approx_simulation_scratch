@@ -38,17 +38,25 @@ function u_lip = GenerateLIPTrajectory(x_lip_init, x_com_init, params)
     ubg = [b_eq;b_ineq];
 
     % Solve the QP
+    try
+        % Try to use a faster active set solver first
+        options.print_time = false;
+        options.printLevel = 'none';
+        options.sparse = true;
+        options.CPUtime = 0.000001;
+        Solver = qpsol('S','qpoases',qp,options);
+        r = Solver('lbg',lbg,'ubg',ubg);
+    catch e
+        % Fall back to an interior point solver if that fails
+        disp("Falling back to interior point solver")
+        disp(e.message)
 
-    options.print_time = false;   % interior point method
-    options.ipopt.print_level = 0;
-    Solver = nlpsol('S','ipopt',qp,options);
-
-    %options.print_time = false;  % Active set method
-    %options.printLevel = 'none';
-    %options.sparse = true;
-    %Solver = qpsol('S','qpoases',qp,options);
-
-    r = Solver('lbg',lbg,'ubg',ubg);
+        options = struct;
+        options.print_time = false;
+        options.ipopt.print_level = 0;
+        Solver = nlpsol('S','ipopt',qp,options);
+        r = Solver('lbg',lbg,'ubg',ubg);
+    end
     x_opt = full(r.x);
     u_lip = x_opt(end-params.N+2:end)';
 
