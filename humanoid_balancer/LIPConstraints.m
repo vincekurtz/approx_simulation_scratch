@@ -8,16 +8,16 @@ function cons = LIPConstraints(params)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     % Running Cost
-    Q = diag([100;0;0;10;0]);
-    R = 0.01;
+    Q = diag([10;0;0;10;0]);
+    R = 5.00;
 
     % Terminal cost based on optimal cost-to-go of LQR
-    Qf = [32.1091 0 0  0.1544 0;
-           0      0 0  0      0;
-           0      0 0  0      0;
-           0.1544 0 0  0.0491 0;
-           0      0 0  0      0];
-    Qf = 100*Qf;
+    Qf = 10*Q;
+    %Qf = 10*[ 5.2859 0 0  0.7700 0;
+    %       0      0 0  0      0;
+    %       0      0 0  0      0;
+    %       0.7700 0 0  0.2843 0;
+    %       0      0 0  0      0];
 
     QQ = kron(eye(params.N-1),Q);  % matrix with Q on diagonal
 
