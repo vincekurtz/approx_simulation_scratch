@@ -38,10 +38,11 @@ function u_lip = GenerateLIPTrajectory(x_lip_init, x_com_init, params)
     ubg = [b_eq;b_ineq];
 
     % Solve the QP
-    options.ipopt.print_level = 0;
     options.print_time = false;
-    Solver = nlpsol('Solver','ipopt',qp, options);
-    %Solver = qpsol('S','qpoases',qp);
+    options.printLevel = 'none';
+    options.sparse = true;
+    Solver = qpsol('S','qpoases',qp,options);
+
     r = Solver('lbg',lbg,'ubg',ubg);
     x_opt = full(r.x);
     u_lip = x_opt(end-params.N+2:end)';

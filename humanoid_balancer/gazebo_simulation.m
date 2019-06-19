@@ -66,7 +66,7 @@ try
     joint4_msg = rosmessage(joint4_pub);
     
     % Number of timesteps and time discritization
-    T = 5;  % simulation time in seconds
+    T = 10;  % simulation time in seconds
     dt = 5e-2;  % note that we get joint angles from ROS at ~50Hz
  
     % Compute MPC constraints for the LIP model
@@ -74,14 +74,14 @@ try
     params.B_lip = B2;
     params.A_com = A1;
     params.B_com = B1;
-    params.N = 5;     % MPC horizon
+    params.N = 7;     % MPC horizon
     params.dt = dt;
     params.R = R;
     params.Q = Q;
     params.K = K_joint;
     params.m = m;
     constraint_params = LIPConstraints(params);
-
+   
     pause(2) % Wait 2s to initialize ROS
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -146,6 +146,9 @@ try
     com_h = A_com(q0)*qd0;
     x_com = [com_pos;com_h];
     x_lip = [com_pos(1);h;0;com_h(2);0];  % y position fixed at h, angular momentum fixed at 0.
+    
+    % "practice" generating a lip trajectory: this will help warm-start the MPC solver
+    GenerateLIPTrajectory(x_lip, x_com, constraint_params);
 
     % Record trajectories
     joint_trajectory = [];
