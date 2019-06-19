@@ -12,7 +12,7 @@ load('balancer_model');
 % LIP model
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-h = 2.0;  % height of lip model
+h = 1.75;  % height of lip model
 g = 9.81; % acceleration due to gravity
 omega = sqrt(g/h);
 A_lip = [0 1; omega^2 0];

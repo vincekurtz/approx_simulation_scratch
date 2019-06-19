@@ -32,8 +32,8 @@ try
     setup_interface;
 
     % Torque limits
-    tau_min = -1000;
-    tau_max = 1000;
+    tau_min = -100;
+    tau_max = 100;
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Simulation Setup
@@ -46,6 +46,10 @@ try
     % Connect to the physics un-pausing service
     pause_client = rossvcclient('/gazebo/unpause_physics');
     pause_msg = rosmessage(pause_client);  % an empty message
+
+    % Connect to a service that will allow us to apply a "push" force to the model
+    push_client = rossvcclient('/gazebo/apply_body_wrench');
+    push_msg = rosmessage(push_client);
     
     % Define a signal to indicate that we have recieved joint angle data
     global ready
@@ -74,7 +78,7 @@ try
     params.B_lip = B2;
     params.A_com = A1;
     params.B_com = B1;
-    params.N = 7;     % MPC horizon
+    params.N = 3;     % MPC horizon
     params.dt = dt;
     params.R = R;
     params.Q = Q;
@@ -96,8 +100,8 @@ try
         pause(0.001)
     end
 
+    % Move the balancer to an initial position
     for timestep=1:dt:T
-        % Start balancing the balancer at some initial conditions
         tic
         % Get joint states (joint angle definitions differ from Gazebo)
         q = [pi/2-t1; -t2; -t3; -t4];
@@ -118,7 +122,7 @@ try
         N = (eye(4) - A_com(q)'*Abar')';   % null space projector
         kp = diag([0;0;1;1]);    % we'll use PD control of joints to
         kd = diag([1;1;1;1]);    % apply commands in the null space
-        q_des = [pi/2;0;0;pi/2];
+        q_des = [0;pi/4;-pi/2;-pi/4];
         qd_des = [0;0;0;0];
         tau0 = -kp*(q-q_des)-kd*(qd-qd_des);
         tau = tau + N'*tau0;
@@ -135,6 +139,15 @@ try
         pause(dt-toc)
     end
 
+    % Give the robot a "push" by applying a force to the torso link
+    disp("Applying Push")
+    push_msg.BodyName = 'multilink_balancer::link4';
+    push_msg.ReferencePoint.Z = 1.0;
+    push_msg.Wrench.Force.X = 10;
+    push_msg.Duration.Nsec = 1e7;
+    push_resp = call(push_client, push_msg);
+    pause(0.01);
+
     % Get the initial state of the robot: note that there is a mismatch between the
     % definitions of theta1, theta2 in our matlab model and in gazebo
     q0 = [pi/2-t1; -t2; -t3; -t4];
@@ -148,7 +161,7 @@ try
     x_lip = [com_pos(1);h;0;com_h(2);0];  % y position fixed at h, angular momentum fixed at 0.
     
     % "practice" generating a lip trajectory: this will help warm-start the MPC solver
-    GenerateLIPTrajectory(x_lip, x_com, constraint_params);
+    %GenerateLIPTrajectory(x_lip, x_com, constraint_params);
 
     % Record trajectories
     joint_trajectory = [];
@@ -193,9 +206,9 @@ try
             Abar = inv(H(q))*A_com(q)'*Lambda;
             N = (eye(4) - A_com(q)'*Abar')';   % null space projector
 
-            kp = diag([0;0;1;1]);    % we'll use PD control of joints to
-            kd = diag([1;1;1;1]);    % apply commands in the null space
-            q_des = [pi/2;0;0;pi/2];
+            kp = diag([0;0;1;0.1]);    % we'll use PD control of joints to
+            kd = diag([2;2;1;1]);    % apply commands in the null space
+            q_des = [0;pi/4;-pi/2;-pi/4];
             qd_des = [0;0;0;0];
             tau0 = -kp*(q-q_des)-kd*(qd-qd_des);
             tau = tau + N'*tau0;

@@ -38,10 +38,15 @@ function u_lip = GenerateLIPTrajectory(x_lip_init, x_com_init, params)
     ubg = [b_eq;b_ineq];
 
     % Solve the QP
-    options.print_time = false;
-    options.printLevel = 'none';
-    options.sparse = true;
-    Solver = qpsol('S','qpoases',qp,options);
+
+    options.print_time = false;   % interior point method
+    options.ipopt.print_level = 0;
+    Solver = nlpsol('S','ipopt',qp,options);
+
+    %options.print_time = false;  % Active set method
+    %options.printLevel = 'none';
+    %options.sparse = true;
+    %Solver = qpsol('S','qpoases',qp,options);
 
     r = Solver('lbg',lbg,'ubg',ubg);
     x_opt = full(r.x);
