@@ -84,7 +84,7 @@ function cons = LIPConstraints(params)
     % Accelration Bound Constraint     %
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    bnd = 8.0;
+    bnd = 6.0;
     A_ucom_bound = [ [eye(2);-eye(2)] zeros(4,1) ];
     A_ucom_bound = [kron(eye(params.N-1), A_ucom_bound) ];
     

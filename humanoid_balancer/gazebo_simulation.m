@@ -70,8 +70,9 @@ try
     joint4_msg = rosmessage(joint4_pub);
     
     % Number of timesteps and time discritization
-    T = 5;  % simulation time in seconds
-    dt = 5e-2;  % note that we get joint angles from ROS at ~50Hz
+    T_prep = 10; % how long to get set in initial position
+    T = 5;       % simulation time in seconds
+    dt = 5e-2;   % sampling period
  
     % Compute MPC constraints for the LIP model
     params.A_lip = A2;
@@ -101,7 +102,7 @@ try
     end
 
     % Move the balancer to an initial position
-    for timestep=1:dt:T
+    for timestep=0:dt:T_prep
         tic
         % Get joint states (joint angle definitions differ from Gazebo)
         q = [pi/2-t1; -t2; -t3; -t4];
@@ -109,7 +110,7 @@ try
         x_com = [p_com(q);A_com(q)*qd];
 
         % Move to desired initial condition
-        x_com_des = [0.0 h 0 0 0]';
+        x_com_des = [0 h 0 0 0]';
         u_com = -K_joint*(x_com_des-x_com);
         u_com = constrain_ucom(u_com, x_com);
 
