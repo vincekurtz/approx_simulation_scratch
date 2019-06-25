@@ -26,7 +26,7 @@ try
     % Indicate the approach to tracking the LIP model we take
     %   'QP' : Traditional approach using a Quadratic Program
     %   'AS' : Our approach using Approximate Simulation
-    tracking_method = 'QP';
+    tracking_method = 'AS';
 
     % Derive LIP and linearized CoM dynamics along with an interface
     setup_interface;
@@ -141,13 +141,13 @@ try
     end
 
     % Give the robot a "push" by applying a force to the torso link
-    %disp("Applying Push")
-    %push_msg.BodyName = 'multilink_balancer::link4';
-    %push_msg.ReferencePoint.Z = 1.0;
-    %push_msg.Wrench.Force.X = -150;
-    %push_msg.Duration.Nsec = 1e7;
-    %push_resp = call(push_client, push_msg);
-    %pause(0.01);
+    disp("Applying Push")
+    push_msg.BodyName = 'multilink_balancer::link4';
+    push_msg.ReferencePoint.Z = 2.0;
+    push_msg.Wrench.Force.X = -100;
+    push_msg.Duration.Nsec = 1e7;
+    push_resp = call(push_client, push_msg);
+    pause(0.01);
 
     % Get the initial state of the robot: note that there is a mismatch between the
     % definitions of theta1, theta2 in our matlab model and in gazebo
@@ -161,9 +161,6 @@ try
     x_com = [com_pos;com_h];
     x_lip = [com_pos(1);h;0;com_h(2);0];  % y position fixed at h, angular momentum fixed at 0.
     
-    % "practice" generating a lip trajectory: this will help warm-start the MPC solver
-    %GenerateLIPTrajectory(x_lip, x_com, constraint_params);
-
     % Record trajectories
     joint_trajectory = [];
     com_trajectory = [];
