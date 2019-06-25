@@ -164,6 +164,7 @@ try
     % Record trajectories
     joint_trajectory = [];
     com_trajectory = [];
+    com_control = [];
     lip_trajectory = [];
     lip_control = [];
     torques = [];
@@ -218,6 +219,9 @@ try
             % Use LQR to find a trajectory for the LIP model
             u_lip = -K_lip*[x_lip(1);x_lip(4)];
 
+            % Fake control for CoM since we'll plot that later
+            u_com = zeros(3,1);
+
             % Apply the LIP control to the LIP model
             dx_lip = A2*x_lip + B2*u_lip;
             x_lip = x_lip + dx_lip*dt;
@@ -240,6 +244,7 @@ try
         % Record the resulting trajectories
         joint_trajectory(end+1,:) = x;
         com_trajectory(end+1,:) = x_com;
+        com_control(end+1,:) = u_com;
         lip_trajectory(end+1,:) = x_lip;
         lip_control(end+1,:) = u_lip;
         torques(end+1,:) = tau;
@@ -261,27 +266,51 @@ end
 % Playback and analysis of the results
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Plot the error vs the simulation function
+% Compute some quantities of interest
 err_sim = [];
 V_sim = [];
+zmp_sim = [];
 for i=1:length(com_trajectory)
+    x = joint_trajectory(i,:)';
+    q = x(1:4);
+    qd = x(5:8);
+
     x_com = com_trajectory(i,:)';
     x_lip = lip_trajectory(i,:)';
 
+    zmp_sim(end+1) = compute_ZMP(com_control(i,:)',q,m,g);
     err_sim(end+1) = sqrt((x_com-x_lip)'*(x_com-x_lip));
     V_sim(end+1) = sqrt((x_com-P*x_lip)'*M*(x_com-P*x_lip));
 end
+
+% Plot the ZMP over time
+figure;
+plot(dt:dt:T,zmp_sim)
+xlabel("time (s)")
+ylabel("ZMP (m)")
+ylim([-0.7,0.7])
+yline(0.5,'-.k');  % lines defining the ZMP support area
+yline(-0.5,'-.k');
+
+% Plot the error vs the simulation function
+figure;
 hold on
 plot(dt:dt:T,err_sim)
 plot(dt:dt:T,V_sim)
-
 legend("Error","Simulation Function")
-xlabel("time")
+xlabel("time (s)")
 ylabel("value")
 
 % Plot the CoM trajectory
 figure;
 plot(dt:dt:T,com_trajectory)
+title("Task-space Trajectory")
+legend("x position", "y position", "angular momentum", "x velocity", "y velocity");
+
+% Plot the LIP trajectory
+figure;
+plot(dt:dt:T,lip_trajectory)
+title("LIP Trajectory")
 legend("x position", "y position", "angular momentum", "x velocity", "y velocity");
 
 % Animate the LIP trajectory
