@@ -30,8 +30,8 @@ function tau = QPTracker(u_lip, x_lip, q, qd, omega)
     % Secondary cost to try to stay in desired configuration
     q_des = [pi/4;pi/2;-pi/4;-pi/2];   
     qd_des = [0;0;0;0];
-    qdd_des = -1*(q - q_des) - 1*(qd-qd_des);
-    cost = cost + (qdd-qdd_des)'*0.1*eye(4)*(qdd-qdd_des);
+    qdd_des = -1*(q - q_des) - 10*(qd-qd_des);
+    cost = cost + (qdd-qdd_des)'*0.2*eye(4)*(qdd-qdd_des);
 
     opti.minimize(cost);
 

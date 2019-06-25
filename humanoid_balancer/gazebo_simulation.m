@@ -26,7 +26,7 @@ try
     % Indicate the approach to tracking the LIP model we take
     %   'QP' : Traditional approach using a Quadratic Program
     %   'AS' : Our approach using Approximate Simulation
-    tracking_method = 'AS';
+    tracking_method = 'QP';
 
     % Derive LIP and linearized CoM dynamics along with an interface
     setup_interface;
@@ -141,13 +141,13 @@ try
     end
 
     % Give the robot a "push" by applying a force to the torso link
-    disp("Applying Push")
-    push_msg.BodyName = 'multilink_balancer::link4';
-    push_msg.ReferencePoint.Z = 1.0;
-    push_msg.Wrench.Force.X = -150;
-    push_msg.Duration.Nsec = 1e7;
-    push_resp = call(push_client, push_msg);
-    pause(0.01);
+    %disp("Applying Push")
+    %push_msg.BodyName = 'multilink_balancer::link4';
+    %push_msg.ReferencePoint.Z = 1.0;
+    %push_msg.Wrench.Force.X = -150;
+    %push_msg.Duration.Nsec = 1e7;
+    %push_resp = call(push_client, push_msg);
+    %pause(0.01);
 
     % Get the initial state of the robot: note that there is a mismatch between the
     % definitions of theta1, theta2 in our matlab model and in gazebo
@@ -219,15 +219,14 @@ try
             % the LIP model
 
             % Use LQR to find a trajectory for the LIP model
-            u_lip = -K_lip*[x_lip(1);1/m*x_lip(4)];
+            u_lip = -K_lip*[x_lip(1);x_lip(4)];
 
             % Apply the LIP control to the LIP model
             dx_lip = A2*x_lip + B2*u_lip;
             x_lip = x_lip + dx_lip*dt;
 
             % Track this trajectory with a QP that enforces contact constraints
-            params.omega = omega;
-            tau = QPTracker(u_lip, x_lip, q, qd, params);
+            tau = QPTracker(u_lip, x_lip, q, qd, omega);
             
         end
 
